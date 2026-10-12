@@ -34,6 +34,7 @@ struct LineInput: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? LineTextView else { return }
         context.coordinator.parent = self; view.submit = submit; view.setAccessibilityLabel(label)
+        view.appearance = NSAppearance(named: context.environment.colorScheme == .dark ? .darkAqua : .aqua)
         if view.string != text && !view.hasMarkedText() { view.string = text }
     }
     class Coordinator: NSObject, NSTextViewDelegate {

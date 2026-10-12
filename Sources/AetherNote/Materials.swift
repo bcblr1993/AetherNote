@@ -26,6 +26,7 @@ struct NoteSurface: ViewModifier {
     @EnvironmentObject var model: AppModel
     @Environment(\.accessibilityReduceTransparency) var reduceTransparency
     @Environment(\.colorSchemeContrast) var contrast
+    @Environment(\.colorScheme) var colorScheme
     func body(content: Content) -> some View {
         content.background {
             if model.preferences.material == .glass && !reduceTransparency {
@@ -35,8 +36,18 @@ struct NoteSurface: ViewModifier {
             }
         }
         .foregroundStyle(model.preferences.material == .paper ? Color(red: 0.27, green: 0.23, blue: 0.17) : Color.primary)
+        .environment(\.colorScheme, model.preferences.material == .paper ? .light : colorScheme)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.primary.opacity(contrast == .increased ? 0.65 : 0.12), lineWidth: contrast == .increased ? 2 : 0.7))
+    }
+}
+
+struct AccentButton: ButtonStyle {
+    @Environment(\.isEnabled) var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.accentColor.opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.35), in: Capsule())
     }
 }
 extension View {

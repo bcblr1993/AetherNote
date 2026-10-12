@@ -72,7 +72,7 @@ struct LineView: View {
             Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(.plain).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
             IconButton(symbol: "chevron.right", title: model.l("next")) { model.navigateWeek(1) }
             Spacer(minLength: 4)
-            Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus").font(.system(size: 12, weight: .medium)) }.buttonStyle(.borderedProminent).controlSize(.small)
+            Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus") }.buttonStyle(AccentButton())
             IconButton(symbol: "sparkles", title: model.l("tidy")) { withAnimation(spring) { model.tidy() } }
             IconButton(symbol: "book.closed", title: model.l("review"), action: review)
             IconButton(symbol: model.preferences.pinned ? "pin.fill" : "pin", title: model.l("pin"), selected: model.preferences.pinned) { model.preferences.pinned.toggle() }

@@ -108,3 +108,34 @@ private var utc: Calendar { var c = Calendar.journal; c.timeZone = TimeZone(seco
     let output = j.markdown(week: mon, calendar: utc)
     #expect(output.range(of: "Monday")!.lowerBound < output.range(of: "Tuesday")!.lowerBound)
 }
+
+@Test func todaysEditDeleteAndMissingEntryAreSafe() throws {
+    let now = date("2026-10-12T10:00:00Z"), day = Day(now, calendar: utc); var j = Journal()
+    try j.append("original", on: day, now: now, calendar: utc)
+    let id = j.records(on: day)[0].id
+    try j.edit(id, text: "edited 日本語", on: day, now: now.addingTimeInterval(60), calendar: utc)
+    #expect(j.records(on: day)[0].id == id)
+    #expect(j.records(on: day)[0].text == "edited 日本語")
+    #expect(j.records(on: day)[0].modifiedAt > j.records(on: day)[0].createdAt)
+    let snapshot = j
+    #expect(throws: JournalError.missingEntry) { try j.edit(UUID(), text: "missing", on: day, now: now, calendar: utc) }
+    #expect(j == snapshot)
+    try j.remove(id, on: day, now: now, calendar: utc)
+    #expect(j.records(on: day).isEmpty)
+}
+
+@Test func travelingWestDoesNotReopenYesterday() {
+    let instant = date("2026-10-13T01:00:00Z")
+    var shanghai = utc; shanghai.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    var la = utc; la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+    var j = Journal(); j.observe(instant, calendar: shanghai)
+    #expect(Day(instant, calendar: la).rawValue == "2026-10-12")
+    #expect(!j.canEdit(Day(instant, calendar: la), now: instant, calendar: la))
+}
+
+@Test func recordedActivityDefersReminder() {
+    let now = date("2026-10-12T10:00:00Z"); var p = ReminderPolicy(startedAt: now)
+    p.recorded(at: now.addingTimeInterval(3590))
+    #expect(!p.isDue(at: now.addingTimeInterval(3601), sessionActive: true, isEditing: false, recentlyTyping: false))
+    #expect(p.isDue(at: now.addingTimeInterval(7190), sessionActive: true, isEditing: false, recentlyTyping: false))
+}
