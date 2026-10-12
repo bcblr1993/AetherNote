@@ -6,6 +6,14 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 [下载 / Download](https://github.com/bcblr1993/AetherNote/releases/latest) · [English guide](docs/guide-en.md) · [测试与发布](docs/verification.md)
 
+![AetherNote 原生晾衣绳，暖纸主题](docs/images/clothesline.png)
+
+<details><summary>本周回顾 · 原生界面截图</summary>
+
+<img src="docs/images/review.png" width="560" alt="按日期阅读这一周的记录" />
+
+</details>
+
 ## 首版功能
 
 - **随手记一行**：回车追加，Shift + 回车换行；粘贴多行会分成多条记录。今天可以修改和删除。
