@@ -5,9 +5,11 @@ let package = Package(
     name: "AetherNote",
     platforms: [.macOS(.v14)],
     products: [.executable(name: "AetherNote", targets: ["AetherNote"]), .library(name: "AetherNoteCore", targets: ["AetherNoteCore"])],
+    dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],
     targets: [
         .target(name: "AetherNoteCore"),
-        .executableTarget(name: "AetherNote", dependencies: ["AetherNoteCore"]),
+        .executableTarget(name: "AetherNote", dependencies: ["AetherNoteCore", .product(name: "Sparkle", package: "Sparkle")],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
         .testTarget(name: "AetherNoteCoreTests", dependencies: ["AetherNoteCore"])
     ],
     swiftLanguageModes: [.v5]

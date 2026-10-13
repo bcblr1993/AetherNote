@@ -8,6 +8,11 @@ VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resource
 ARCH="$(uname -m)"
 APP="build/AetherNote.app"
 mkdir -p dist work
+FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
+for COMPONENT in XPCServices/Installer.xpc XPCServices/Downloader.xpc Autoupdate Updater.app; do
+  codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$FRAMEWORK/Versions/B/$COMPONENT"
+done
+codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$FRAMEWORK"
 codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 ditto -c -k --keepParent "$APP" work/notary-app.zip
@@ -22,9 +27,12 @@ STAGE="$(mktemp -d "${TMPDIR:-/tmp}/AetherNote-dmg.XXXXXX")"
 ditto "$APP" "$STAGE/AetherNote.app"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "AetherNote" -srcfolder "$STAGE" -ov -format UDZO "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg"
+codesign --force --timestamp --sign "$SIGNING_IDENTITY" "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg"
 xcrun notarytool submit "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg" --keychain-profile "$NOTARY_PROFILE" --wait --output-format json > work/notary-dmg.json
 python3 -c 'import json; assert json.load(open("work/notary-dmg.json"))["status"] == "Accepted"'
 xcrun stapler staple "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg"
 xcrun stapler validate "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg"
+.build/artifacts/sparkle/Sparkle/bin/sign_update --account AetherNote "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg" > "dist/sparkle-${VERSION}.txt"
+.build/artifacts/sparkle/Sparkle/bin/sign_update --account AetherNote --verify "dist/AetherNote-${VERSION}-macos-${ARCH}.dmg" "$(sed -n 's/.*edSignature="\([^"]*\)".*/\1/p' "dist/sparkle-${VERSION}.txt")"
 (cd dist && shasum -a 256 "AetherNote-${VERSION}-macos-${ARCH}.dmg" "AetherNote-${VERSION}-macos-${ARCH}.zip" > SHA256SUMS)
 echo "Signed, notarized and stapled assets are in dist/."

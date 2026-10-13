@@ -15,6 +15,12 @@ enum Language: String, Codable, CaseIterable, Identifiable {
 enum Copy {
     // Every row has exactly three translations: Chinese, English, Japanese.
     static let values: [String: [String]] = [
+        "unsavedEdit": ["请先保存或取消当前修改，再离开这一天。", "Save or cancel your current edit before leaving this day.", "この日を閉じる前に、変更を保存またはキャンセルしてください。"],
+        "recordedDays": ["已记录", "Days captured", "記録した日"],
+        "weekOverview": ["一周的小事，都在这里。", "Your week, one little thing at a time.", "一週間の小さなできごとを、ここに。"],
+        "settingsHint": ["让记录更贴合你的习惯。", "A little space, made yours.", "自分に合った、記録の場所に。"],
+        "appUpdates": ["应用更新", "App updates", "アプリの更新"],
+        "savedLocally": ["保存在这台 Mac", "Saved on this Mac", "この Mac に保存"],
         "editMenu": ["编辑", "Edit", "編集"], "undo": ["撤销", "Undo", "取り消す"],
         "cut": ["剪切", "Cut", "切り取り"], "copyMenu": ["复制", "Copy", "コピー"],
         "paste": ["粘贴", "Paste", "ペースト"], "selectAll": ["全选", "Select All", "すべてを選択"],
@@ -50,7 +56,10 @@ enum Copy {
         "previewReminder": ["预览轻提醒", "Preview reminder", "お知らせを試す"],
         "dismiss": ["这次先不用", "Not now", "今は大丈夫"], "launch": ["登录时启动", "Launch at login", "ログイン時に起動"],
         "data": ["数据与隐私", "Data & privacy", "データとプライバシー"],
-        "localInfo": ["记录仅保存在这台 Mac。无需账号，不联网，不收集使用数据。", "Your journal stays on this Mac. No account, network access, or analytics.", "記録はこの Mac 内だけ。アカウント、通信、利用状況の収集はありません。"],
+        "localInfo": ["记录仅保存在这台 Mac。无需账号，不收集使用数据；检查更新时联网，不发送日记内容。", "Your journal stays on this Mac. No account or analytics. Update checks use the network without sending your notes.", "記録はこの Mac 内だけ。アカウントや利用状況の収集はありません。更新確認時のみ通信し、メモは送信しません。"],
+        "checkUpdates": ["检查更新…", "Check for Updates…", "アップデートを確認…"],
+        "updateInfo": ["手动检查，下载后安装并重新启动。不会自动下载或重启。更新窗口跟随系统语言。", "Check manually, then download, install and relaunch. No automatic downloads or restarts. Update windows follow the system language.", "手動で確認し、ダウンロード後にインストールして再起動します。自動ダウンロードや再起動はしません。更新画面はシステムの言語に従います。"],
+        "unsavedUpdateEdit": ["请先保存或取消当前修改，再退出或安装更新。", "Save or cancel the current edit before quitting or installing the update.", "終了または更新する前に、編集中の変更を保存またはキャンセルしてください。"],
         "openData": ["打开数据文件夹", "Open data folder", "データフォルダを開く"],
         "backup": ["导出完整备份", "Export full backup", "全データをバックアップ"],
         "shortcut": ["全局快捷键：⌃⌥N 记一行 · ⌃⌥L 展开/收起", "Global shortcuts: ⌃⌥N add a line · ⌃⌥L show/hide", "ショートカット：⌃⌥N 一行メモ · ⌃⌥L 表示切替"],

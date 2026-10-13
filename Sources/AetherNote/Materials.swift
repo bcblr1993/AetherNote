@@ -2,21 +2,19 @@ import AppKit
 import SwiftUI
 
 struct NativeGlass: NSViewRepresentable {
+    var radius: CGFloat = 24
     func makeNSView(context: Context) -> NSView {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             let view = NSGlassEffectView()
-            view.cornerRadius = 22
+            view.cornerRadius = radius
             view.style = .regular
-            #if compiler(>=6.4)
-            if #available(macOS 27.0, *) { view.effectIsInteractive = true }
-            #endif
             return view
         }
         #endif
         let view = NSVisualEffectView()
         view.material = .popover; view.blendingMode = .behindWindow; view.state = .active
-        view.wantsLayer = true; view.layer?.cornerRadius = 22
+        view.wantsLayer = true; view.layer?.cornerRadius = radius
         return view
     }
     func updateNSView(_ nsView: NSView, context: Context) {}
@@ -31,42 +29,109 @@ struct NoteSurface: ViewModifier {
         content.background {
             if model.preferences.material == .glass && !reduceTransparency {
                 NativeGlass()
+                    .overlay(colorScheme == .dark ? Color.black.opacity(0.32) : Color.white.opacity(0.18))
+                    .overlay(LinearGradient(colors: [.cyan.opacity(0.035), .clear, .indigo.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .ignoresSafeArea()
             } else {
-                RoundedRectangle(cornerRadius: 22).fill(model.preferences.material == .paper ? Color(red: 0.98, green: 0.94, blue: 0.83) : Color(nsColor: .windowBackgroundColor))
+                RoundedRectangle(cornerRadius: 24).fill(model.preferences.material == .paper ? Color(red: 0.98, green: 0.96, blue: 0.90) : (model.preferences.material == .white ? Color(red: 0.98, green: 0.985, blue: 0.995) : Color(nsColor: .windowBackgroundColor))).ignoresSafeArea()
             }
         }
-        .foregroundStyle(model.preferences.material == .paper ? Color(red: 0.27, green: 0.23, blue: 0.17) : Color.primary)
-        .environment(\.colorScheme, model.preferences.material == .paper ? .light : colorScheme)
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.primary.opacity(contrast == .increased ? 0.65 : 0.12), lineWidth: contrast == .increased ? 2 : 0.7))
+        .foregroundStyle(model.preferences.material != .glass ? Color(red: 0.24, green: 0.22, blue: 0.18) : Color.primary)
+        .environment(\.colorScheme, model.preferences.material != .glass ? .light : colorScheme)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.primary.opacity(contrast == .increased ? 0.65 : 0.10), lineWidth: contrast == .increased ? 2 : 0.5))
     }
 }
 
-struct AccentButton: ButtonStyle {
-    @Environment(\.isEnabled) var enabled
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Color.accentColor.opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.35), in: Capsule())
+struct InsetSurface: ViewModifier {
+    var selected = false
+    @Environment(\.colorScheme) var scheme
+    @Environment(\.colorSchemeContrast) var contrast
+    func body(content: Content) -> some View {
+        content.background(selected ? Color.accentColor.opacity(0.09) : Color.primary.opacity(scheme == .dark ? 0.045 : 0.025), in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(contrast == .increased ? 0.5 : 0.07), lineWidth: contrast == .increased ? 1.5 : 0.7))
     }
 }
+
+struct GlassButton: ButtonStyle {
+    var primary = false
+    var compact = false
+    func makeBody(configuration: Configuration) -> some View {
+        GlassButtonBody(configuration: configuration, primary: primary, compact: compact)
+    }
+}
+private struct GlassButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let primary: Bool
+    let compact: Bool
+    @State private var hovered = false
+    @EnvironmentObject var model: AppModel
+    @Environment(\.isEnabled) var enabled
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.colorSchemeContrast) var contrast
+    var body: some View {
+        configuration.label.font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(primary ? Color.white : Color.primary)
+            .padding(.horizontal, compact ? 0 : 14).frame(minWidth: 32, minHeight: 32)
+            .background {
+                RoundedRectangle(cornerRadius: 10).fill(primary ? Color.accentColor : Color.primary.opacity(hovered ? 0.10 : 0.045))
+                if primary { RoundedRectangle(cornerRadius: 10).fill(LinearGradient(colors: [.white.opacity(0.16), .clear], startPoint: .top, endPoint: .bottom)) }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(contrast == .increased ? 0.5 : 0.07), lineWidth: 0.7))
+            .brightness(configuration.isPressed ? -0.07 : 0)
+            .opacity(enabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed && !reduceMotion && !model.reduceMotion ? 0.97 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onHover { hovered = $0 }
+            .animation(reduceMotion || model.reduceMotion ? nil : .easeOut(duration: 0.15), value: hovered)
+    }
+}
+struct AccentButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { GlassButtonBody(configuration: configuration, primary: true, compact: false) }
+}
+
+struct PanelHeading: View {
+    let symbol: String
+    let title: String
+    let subtitle: String
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: symbol).font(.system(size: 21, weight: .medium)).foregroundStyle(Color.accentColor)
+                .frame(width: 48, height: 48).background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 15))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.system(size: 23, weight: .semibold, design: .rounded))
+                Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+struct StatusPill: View {
+    let text: String
+    var accent = false
+    var body: some View {
+        Text(text).font(.system(size: 10, weight: .medium)).foregroundStyle(accent ? Color.accentColor : .secondary)
+            .padding(.horizontal, 9).padding(.vertical, 5).background((accent ? Color.accentColor : .primary).opacity(0.075), in: Capsule())
+    }
+}
+
 extension View {
     func noteSurface() -> some View { modifier(NoteSurface()) }
+    func insetSurface(selected: Bool = false) -> some View { modifier(InsetSurface(selected: selected)) }
     func errors(_ model: AppModel) -> some View {
         alert(model.l("error"), isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button(model.l("ok")) { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
     }
 }
-
 struct IconButton: View {
     let symbol: String
     let title: String
     var selected = false
     let action: () -> Void
     var body: some View {
-        Button(action: action) { Image(systemName: symbol).font(.system(size: 13, weight: .medium)).frame(width: 30, height: 30).contentShape(Rectangle()) }
-            .buttonStyle(.plain).background(selected ? Color.accentColor.opacity(0.16) : Color.clear, in: Circle())
+        Button(action: action) { Image(systemName: symbol).font(.system(size: 13, weight: .medium)).frame(width: 32, height: 32) }
+            .buttonStyle(GlassButton(compact: true))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 1.5))
             .help(title).accessibilityLabel(title)
     }
 }

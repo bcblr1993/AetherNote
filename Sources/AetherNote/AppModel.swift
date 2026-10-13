@@ -27,6 +27,7 @@ struct Preferences: Codable {
     @Published var toast: String?
     @Published var reminderPending = false
     @Published var drafts: [String: String] = [:]
+    var hasUnsavedEdit = false
     var reminder: ReminderPolicy
     var onPreferencesChanged: (() -> Void)?
     var onReminderChanged: (() -> Void)?
@@ -93,15 +94,16 @@ struct Preferences: Codable {
         draftSave?.cancel(); let task = DispatchWorkItem { [weak self] in self?.flushDrafts() }; draftSave = task
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: task)
     }
-    func flushDrafts() { writePrivate(drafts, name: "drafts.json") }
+    @discardableResult func flushDrafts() -> Bool { writePrivate(drafts, name: "drafts.json") }
     func savePreferences() { writePrivate(preferences, name: "preferences.json") }
-    private func writePrivate<T: Encodable>(_ value: T, name: String) {
+    @discardableResult private func writePrivate<T: Encodable>(_ value: T, name: String) -> Bool {
         do {
             try FileManager.default.createDirectory(at: disk.directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let url = disk.directory.appendingPathComponent(name)
             try JSONEncoder().encode(value).write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        } catch { errorMessage = l("saveError") }
+            return true
+        } catch { errorMessage = l("saveError"); return false }
     }
     func reorder(_ day: Day, to target: Day) {
         var order = visibleDays

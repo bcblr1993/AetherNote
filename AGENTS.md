@@ -1,6 +1,6 @@
 # AetherNote
 
-- Native macOS app: SwiftUI/AppKit, Swift Package Manager, no production dependencies.
+- Native macOS app: SwiftUI/AppKit and Swift Package Manager. Sparkle is the only production dependency, used for signed in-app updates.
 - Run `swift test`, `swift build -c release`, and `scripts/build-app.sh` before release.
 - Today and all past days support append, edit and delete. Future dates remain unavailable. Preserve v0.1.0 journal compatibility.
 - Arrangement changes may affect historical cards, but must never alter entries or dates.

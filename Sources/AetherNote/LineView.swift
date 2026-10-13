@@ -13,7 +13,7 @@ struct LineView: View {
     private var spring: Animation? { model.reduceMotion ? nil : .spring(response: 0.58, dampingFraction: 0.58) }
     var body: some View {
         VStack(spacing: 0) {
-            toolbar.padding(.horizontal, 16).padding(.vertical, 7).noteSurface().padding(.horizontal, 38)
+            toolbar.padding(.horizontal, 16).padding(.vertical, 10).noteSurface().padding(.horizontal, 38)
             GeometryReader { geo in
                 let days = model.visibleDays
                 let gap: CGFloat = 18
@@ -25,7 +25,7 @@ struct LineView: View {
                     p.move(to: CGPoint(x: 18, y: 22))
                     p.addQuadCurve(to: CGPoint(x: geo.size.width - 18, y: 22), control: CGPoint(x: geo.size.width / 2, y: 53 + ropePull))
                 }
-                .stroke(Color(red: 0.58, green: 0.49, blue: 0.36), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(Color.gray.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .shadow(color: .black.opacity(0.15), radius: 2, y: 2)
                 .padding(.top, 0)
                 .contentShape(Rectangle().path(in: CGRect(x: 0, y: 8, width: geo.size.width, height: 52)))
@@ -53,8 +53,8 @@ struct LineView: View {
                         })
                         .animation(spring, value: days)
                         .contextMenu {
-                            Button(model.l("moveLeft")) { withAnimation(spring) { model.move(day, by: -1) } }
-                            Button(model.l("moveRight")) { withAnimation(spring) { model.move(day, by: 1) } }
+                            Button(model.l("moveLeft")) { withAnimation(spring) { model.move(day, by: -1) } }.disabled(index == 0)
+                            Button(model.l("moveRight")) { withAnimation(spring) { model.move(day, by: 1) } }.disabled(index == days.count - 1)
                             Divider()
                             Button(model.l("copy")) { model.copy(model.journal.records(on: day).map(\.text).joined(separator: "\n")) }
                         }
@@ -66,10 +66,11 @@ struct LineView: View {
     }
     private var toolbar: some View {
         HStack(spacing: 7) {
+            Image(systemName: "line.3.horizontal.decrease").foregroundStyle(Color.accentColor)
             Text("AetherNote").font(.system(size: 13, weight: .semibold, design: .rounded))
             Divider().frame(height: 15)
             IconButton(symbol: "chevron.left", title: model.l("previous")) { model.navigateWeek(-1) }
-            Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(.plain).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
+            Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(GlassButton()).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
             IconButton(symbol: "chevron.right", title: model.l("next")) { model.navigateWeek(1) }
             Spacer(minLength: 4)
             Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus") }.buttonStyle(AccentButton())
@@ -90,7 +91,7 @@ struct DayCard: View {
     private var records: [Entry] { model.journal.records(on: day) }
     var body: some View {
         VStack(spacing: -5) {
-            Capsule().fill(day == model.today ? Color.accentColor : Color(red: 0.7, green: 0.55, blue: 0.34)).frame(width: 9, height: 25).overlay(Capsule().strokeBorder(.white.opacity(0.5), lineWidth: 1)).zIndex(2)
+            Capsule().fill(day == model.today ? Color.accentColor : Color.gray.opacity(0.8)).frame(width: 9, height: 25).overlay(Capsule().strokeBorder(.white.opacity(0.5), lineWidth: 1)).zIndex(2)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(model.weekday(day)).font(.system(size: 12, weight: .semibold))
@@ -106,7 +107,7 @@ struct DayCard: View {
                         ForEach(records.prefix(3)) { entry in
                             HStack(alignment: .top, spacing: 5) {
                                 Circle().fill(Color.accentColor.opacity(0.65)).frame(width: 3, height: 3).padding(.top, 6)
-                                Text(entry.text).font(.system(size: 11)).lineLimit(2)
+                                Text(entry.text).font(.system(size: 12)).lineLimit(2)
                             }
                         }
                     }
@@ -117,10 +118,12 @@ struct DayCard: View {
                     else if day < model.today { Image(systemName: "pencil"); Text(model.l("editable")) }
                     Spacer(minLength: 0)
                     if !records.isEmpty { Text("\(records.count)").monospacedDigit() }
-                }.font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
             }.padding(13).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .noteSurface().shadow(color: .black.opacity(hovered ? 0.18 : 0.1), radius: hovered ? 15 : 8, y: hovered ? 8 : 4)
         }
+        .scaleEffect(hovered && !model.reduceMotion ? 1.025 : 1)
+        .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: hovered)
         .contentShape(Rectangle()).onTapGesture(perform: open).onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(day.rawValue), \(model.weekday(day)), \(records.count) \(model.l("entries")), \(model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"))")

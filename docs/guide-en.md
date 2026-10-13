@@ -17,13 +17,19 @@ A native, local-only activity journal for macOS. Write what you did, one line at
 
 Chinese, English, Japanese, or system language. Liquid Glass, warm paper, or clean paper. System dark/light appearance is respected; warm paper stays warm.
 
-The release targets Apple Silicon and macOS 14+. macOS 26 uses native `NSGlassEffectView`; macOS 27 enables its interactive effect. Earlier systems use `NSVisualEffectView`. Reduced motion disables playful animations. Reduced transparency uses an opaque surface, and increased contrast strengthens outlines. Cards expose accessible open and move actions.
+The release targets Apple Silicon and macOS 14+. macOS 26 and 27 use native `NSGlassEffectView`, with spring-driven dragging and hover feedback. Earlier systems use `NSVisualEffectView`. Reduced motion disables playful animations. Reduced transparency uses an opaque surface, and increased contrast strengthens outlines. Cards expose accessible open and move actions.
 
 ## Quiet reminders
 
 After an hour without a new or edited entry, a small mark appears in the menu bar. No sound, notification permission, focus changes, or automatic reminder window. Clicking the mark opens today's editor. Right-click and choose Not now to dismiss it. Disable reminders or preview the mark from Settings.
 
 The policy checks every 15 seconds, postpones during typing or while the editor is active, and resets after waking or returning to an active session. It does not query Focus mode or screen sharing: by using only a menu bar mark, it avoids intrusive interruptions in every mode.
+
+## In-app updates
+
+Choose Check for Updates… in Settings or the application/menu bar menu. Sparkle shows the new version, downloads and verifies the signed archive, and offers Install and Relaunch. Checks are manual; automatic downloads, restarts and system-profile sharing are disabled. Update windows follow the system language.
+
+Versions 0.1.0 and 0.1.1 do not contain an updater: install 0.1.2 manually once. Later releases can be installed in the app. Quit/relaunch flushes append drafts; unsaved entry edits must be saved or cancelled before termination. An explicit `--data-dir` is carried across an update for the same installation using a private, single-use, ten-minute relaunch context.
 
 ## Backup and recovery
 
@@ -40,11 +46,11 @@ To restore manually:
 
 Starting with v0.1.1, historical notes are editable. Existing v0.1.0 journals load without conversion and their old high-water metadata no longer locks past dates. Editing preserves the entry's ID, creation time and calendar date; the modification time updates. Dates follow the Mac's local Gregorian calendar.
 
-No network connections, account, analytics, cloud sync, or background AI. The files are not encrypted by this app; macOS account permissions and FileVault remain relevant.
+No account, analytics, cloud sync, or background AI. Manual update checks contact the official website and update downloads use GitHub. Standard network and app/OS compatibility information may be sent, but journal contents, drafts and backups are never included. The files are not encrypted by this app; macOS account permissions and FileVault remain relevant.
 
 ## Build and release
 
-Use Xcode 27 for the complete macOS 27 implementation, or Xcode 26 for the macOS 26 API. No third-party runtime dependencies.
+Use Xcode 27 for the complete macOS 27 implementation, or Xcode 26 for the macOS 26 API. Sparkle 2.10.0 is the only third-party runtime dependency.
 
 ```sh
 swift test
@@ -52,4 +58,8 @@ python3 scripts/check-localization.py
 bash scripts/build-app.sh
 ```
 
+The packaged app includes Sparkle and its license. `scripts/check-updater.py` validates the embedded framework, helpers, runtime search path and manual-check policy.
+
 Maintainers can sign and notarize a tested app using `scripts/release.sh`, with `SIGNING_IDENTITY` and `NOTARY_PROFILE` environment variables. Do not put credentials in the repository. If notarization remains In Progress after interruption, use the submission ID to wait for it instead of submitting the same archive again. A release must pass the checks in [verification.md](verification.md).
+
+Sparkle update signing uses the `AetherNote` account in the macOS Keychain. `scripts/release.sh` signs the final stapled DMG, verifies its Ed25519 signature, and writes `dist/sparkle-<version>.txt`. Include that signature and byte length in the website release entry before deploying its appcast. Never export private signing keys into the repository.

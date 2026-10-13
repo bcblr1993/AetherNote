@@ -8,7 +8,7 @@ final class FloatingPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-@MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+@MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
     var model: AppModel!
     var status: NSStatusItem!
     var line: FloatingPanel!
@@ -24,11 +24,24 @@ final class FloatingPanel: NSPanel {
     var lastEdge = Date.distantPast
     var hideWork: DispatchWorkItem?
     var journalLock: Int32 = -1
+    var updates: AppUpdates!
+    var customDataDirectory: String?
+    var updateRestartRequested = false
+    private var relaunchFile: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("AetherNote/update-relaunch.json")
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let args = ProcessInfo.processInfo.arguments
-        let explicitDirectory = args.firstIndex(of: "--data-dir").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
+        let resumedDirectory: String?
+        do { resumedDirectory = try UpdateRelaunch.consume(from: relaunchFile, applicationPath: Bundle.main.bundleURL.path, now: Date()) }
+        catch {
+            let alert = NSAlert(); alert.messageText = "AetherNote"; alert.informativeText = error.localizedDescription
+            alert.runModal(); NSApp.terminate(nil); return
+        }
+        let explicitDirectory = args.firstIndex(of: "--data-dir").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil } ?? resumedDirectory
+        customDataDirectory = explicitDirectory.map { URL(fileURLWithPath: $0, isDirectory: true).standardizedFileURL.path }
         let directory = explicitDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("AetherNote", isDirectory: true)
         let firstLaunch = !FileManager.default.fileExists(atPath: directory.appendingPathComponent("journal.json").path)
@@ -54,6 +67,8 @@ final class FloatingPanel: NSPanel {
             review?.title = model.l("review"); settings?.title = model.l("settings")
         }
         model.onReminderChanged = { [weak self] in self?.updateStatus() }
+        updates = AppUpdates()
+        updates.willRestart = { [weak self] in self?.updateRestartRequested = true }
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.target = self; status.button?.action = #selector(statusClicked)
         status.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -77,6 +92,8 @@ final class FloatingPanel: NSPanel {
     func createApplicationMenu() {
         let menu = NSMenu(), application = NSMenuItem(), submenu = NSMenu()
         submenu.addItem(withTitle: model.l("settings"), action: #selector(openSettings), keyEquivalent: ",").target = self
+        submenu.addItem(withTitle: model.l("checkUpdates"), action: #selector(checkForUpdates), keyEquivalent: "").target = self
+        submenu.addItem(withTitle: model.l("close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         submenu.addItem(.separator())
         submenu.addItem(withTitle: model.l("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         application.submenu = submenu; menu.addItem(application)
@@ -128,7 +145,7 @@ final class FloatingPanel: NSPanel {
     @objc func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu = NSMenu()
-            for (key, action) in [("add", #selector(quickAdd)), ("show", #selector(toggleLine)), ("review", #selector(openReview)), ("settings", #selector(openSettings))] {
+            for (key, action) in [("add", #selector(quickAdd)), ("show", #selector(toggleLine)), ("review", #selector(openReview)), ("settings", #selector(openSettings)), ("checkUpdates", #selector(checkForUpdates))] {
                 menu.addItem(withTitle: model.l(key), action: action, keyEquivalent: "").target = self
             }
             if model.reminderPending { menu.addItem(withTitle: model.l("dismiss"), action: #selector(dismissReminder), keyEquivalent: "").target = self }
@@ -142,30 +159,67 @@ final class FloatingPanel: NSPanel {
     func openDay(_ day: Day) {
         model.now = Date(); model.dismissReminder()
         model.flushDrafts()
+        guard canLeaveEditor() else { return }
         editor?.close()
-        editor = makeWindow(title: "AetherNote · \(day.rawValue)", size: NSSize(width: 520, height: 620), root: DayEditor(day: day).environmentObject(model))
+        editor = makeWindow(title: "AetherNote · \(day.rawValue)", size: NSSize(width: 580, height: 660), root: DayEditor(day: day).environmentObject(model))
         present(editor!)
     }
     @objc func openReview() {
-        if review == nil { review = makeWindow(title: model.l("review"), size: NSSize(width: 710, height: 720), root: ReviewView().environmentObject(model)) }
+        if review == nil { review = makeWindow(title: model.l("review"), size: NSSize(width: 740, height: 700), root: ReviewView().environmentObject(model)) }
         present(review!)
     }
     @objc func openSettings() {
-        if settings == nil { settings = makeWindow(title: model.l("settings"), size: NSSize(width: 550, height: 700), root: SettingsView(previewReminder: { [weak self] in
+        if settings == nil { settings = makeWindow(title: model.l("settings"), size: NSSize(width: 600, height: 760), root: SettingsView(updates: updates, previewReminder: { [weak self] in
             guard let self else { return }; model.reminderPending = true; updateStatus(); model.showToast(model.l("reminderPrompt"))
         }).environmentObject(model)) }
         present(settings!)
+    }
+    @objc func checkForUpdates() { updates.check() }
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        menuItem.action == #selector(checkForUpdates) ? updates.canCheck : true
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard model != nil else { return .terminateNow }
+        return prepareForUpdateRestart() ? .terminateNow : .terminateCancel
+    }
+    func prepareForUpdateRestart() -> Bool {
+        guard !model.hasUnsavedEdit else {
+            let alert = NSAlert(); alert.messageText = model.l("unsavedUpdateEdit"); alert.addButton(withTitle: model.l("ok"))
+            NSApp.activate(ignoringOtherApps: true); alert.runModal()
+            if let editor { present(editor) }
+            return false
+        }
+        guard model.flushDrafts() else { return false }
+        do {
+            if updateRestartRequested, let customDataDirectory {
+                try UpdateRelaunch(applicationPath: Bundle.main.bundleURL.path, dataDirectory: customDataDirectory, now: Date()).save(to: relaunchFile)
+            }
+            return true
+        } catch { model.errorMessage = model.l("saveError"); return false }
     }
     func makeWindow<V: View>(title: String, size: NSSize, root: V) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = title; window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false; window.delegate = self
+        window.isOpaque = false; window.backgroundColor = .clear
         // Keep content below traffic lights while retaining the system's window glass.
         window.contentView = NSHostingView(rootView: root)
         window.minSize = NSSize(width: size.width, height: min(size.height, 590)); window.center()
         return window
     }
     func present(_ window: NSWindow) { NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil) }
+    func canLeaveEditor() -> Bool {
+        guard !model.hasUnsavedEdit else {
+            let alert = NSAlert(); alert.messageText = model.l("unsavedEdit")
+            alert.addButton(withTitle: model.l("ok")); alert.runModal()
+            if let editor { present(editor) }
+            return false
+        }
+        return model.flushDrafts()
+    }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender === editor ? canLeaveEditor() : true
+    }
     func windowWillClose(_ notification: Notification) { model.flushDrafts() }
     func tick() {
         let typing = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown) < 60
