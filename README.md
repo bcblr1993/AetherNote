@@ -28,7 +28,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 - **应用内更新**：设置或菜单中的“检查更新…”会显示新版信息，下载后点击安装并重新启动。更新包经过签名校验，默认不自动检查、下载或重启。
 - 本地保存、草稿自动保存、完整 JSON 备份、菜单栏入口、全局快捷键、可选登录启动。
 
-## main 分支新增：每日配色与日期导航（尚未发布）
+## v0.1.3：每日配色与日期导航
 
 每天自动分配一款柔和颜色，同周默认不重复，重新打开不会变色。在每日记录右上角点击“便签颜色”，可以选用八款预设、系统选色器或输入 HEX 色值；自定义颜色先预览、再点击“应用”。“换个随机颜色”会选一款不同的预设并保存。右键晾衣绳卡片也能快速换色。
 
@@ -48,7 +48,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 > v0.1.1 起，历史便签不再封存。旧版数据无需转换，更新后即可编辑；修改保留记录原始创建时间和所属日期。
 
-> v0.1.0 / v0.1.1 没有更新器，需要手动安装一次 v0.1.2；之后可在应用内完成后续更新。更新窗口跟随系统语言。
+> v0.1.0 / v0.1.1 没有更新器，需要手动安装一次 v0.1.2 或更新版本；之后可在应用内完成后续更新。更新窗口跟随系统语言。
 
 ## 数据与隐私
 
@@ -56,7 +56,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 数据目录：`~/Library/Application Support/AetherNote/`
 
-- `journal.json`：正文、日期元数据、显示顺序；main 分支还包含每日配色。
+- `journal.json`：正文、日期元数据、显示顺序与每日配色。
 - `journal.previous.json`：最近一次成功写入之前的版本（不是长期历史备份）。
 - `drafts.json`：尚未提交的草稿，跨日后可以带到今天。
 - `preferences.json`：外观和提醒偏好。

@@ -1,34 +1,24 @@
-# v0.1.2 verification
+# v0.1.3 verification
 
-Validated on 2026-10-13 on Apple silicon, macOS 27.0.1 and Xcode 27. Previous reports: [v0.1.1](verification-0.1.1.md), [v0.1.0](verification-0.1.0.md).
+Prepared on 2026-10-13 on Apple silicon, macOS 27.0.1 and Xcode 27. Previous report: [v0.1.2](verification-0.1.2.md).
 
 ## Automated checks
 
-- `swift test`: 15 tests pass, including journal compatibility, editing past days, future-date refusal, arrangement invariance, calendar boundaries, persistence and quiet reminder timing.
-- Update relaunch tests verify matching installation paths, single-use consumption and expiration of an explicit QA data directory.
-- `python3 scripts/check-localization.py`: 89 complete Chinese/English/Japanese rows and all literal lookup sites validated.
-- Release build and `scripts/check-updater.py` pass: framework/helper embedding, runtime path, public key, HTTPS feed configuration, verification before extraction and manual-only update policy.
+- `swift test`: 21 tests pass, including legacy journal decoding, stable weekly colors, unique automatic colors, custom color persistence and backup, malformed color rejection, unchanged entries/exports during appearance changes, and future-day write protection.
+- `python3 scripts/check-localization.py`: 110 complete Chinese/English/Japanese rows and literal lookup sites validated.
+- Release build and `scripts/check-updater.py` pass. Signed update feed, embedded Sparkle helpers and manual-only update policy remain unchanged.
 
-## Native interface acceptance
+## Native UI acceptance
 
-- Redesigned clothesline toolbar/cards, day editor, weekly review and grouped settings using native glass, unified controls and accessible opaque fallbacks.
-- Appended multiple lines through native input and Return; edited and saved a record; appended to yesterday's journal from the review page.
-- Closing a window with a dirty inline edit shows a guard alert and retains the text. Save returns to the record list. Command-W closes a saved editor.
-- Weekly day navigation scrolls to the selected date; copy shows confirmation; opening a past day from review presents an editable journal.
-- Dragged a card to another position, verified changed order, then used Tidy to restore chronological order.
-- Settings language selection changes immediately between Chinese, English and Japanese. Inspected translated layouts, material selection, reminder preview and backup save dialog. No login-item setting was changed on the host.
-- Screenshots under `docs/images` use isolated demonstration data. No production journal was seeded or modified.
+- Custom/preset/random colors, preview before Apply, invalid HEX disabling Apply, persistence through restarts, and date-bound color preservation through move/tidy were checked using isolated data.
+- Chinese/glass, English/white and Japanese/paper color panels were visually inspected. The light popup correctly uses a light background even when the system is dark.
+- The visible This week controls returned from 26 weeks in the past and 26 weeks in the future. Weekly review return also passed. The journal stayed byte-for-byte unchanged.
+- Detailed feature checks: [daily colors](verification-daily-colors.md).
 
-## In-app update acceptance
+## Release gates
 
-Sparkle 2.10.0 manages signed archive verification, installation and relaunch. Manual checks are available from Settings and the application/status menus. Update windows use the system language. Daily notes and drafts are not sent with update requests; system profiling and automatic checks/downloads are disabled.
+The publication workflow signs, notarizes and staples app and DMG, checks the mounted DMG contents, signs the final DMG for Sparkle, and verifies public assets, website, appcast and a real update from the published v0.1.2. Final publication evidence is retained separately and attached to the release process; preparation alone is not a claim that all public gates passed.
 
-Before the UI redesign, an isolated, lower-build updater-enabled QA installation completed discovery, download, Ed25519 verification, installation and automatic relaunch into build 2026101302. The installed executable matched the packaged executable, and journal, previous-journal and draft SHA-256 values were unchanged. A missing-feed request also showed a recoverable native error.
+Versions 0.1.0 and 0.1.1 require one manual installation of v0.1.2 or later. Version 0.1.2 can update in the app while retaining local notes and drafts.
 
-**Bootstrap limitation:** public v0.1.0 and v0.1.1 contain no updater. They require one manual installation of v0.1.2. The QA baseline is not represented as a public v0.1.1 installation.
-
-## Scope and limitations
-
-This is native host-Mac acceptance, not a claim of physical multi-display, Intel, older macOS or input-method-composition acceptance. Reduce Motion, Reduce Transparency and Increase Contrast have code paths; host accessibility preferences were not changed for this round. Host Gatekeeper has an existing security-disabled override; `syspolicy_check distribution` is checked independently and no security setting is changed.
-
-Signed package metadata and final publication results are recorded on the [release page](https://github.com/bcblr1993/AetherNote/releases/tag/v0.1.2).
+This is host-Mac acceptance. No claim is made for new physical multi-display, Intel or older-macOS UI acceptance. Accessibility preferences and host Gatekeeper policy were not changed. Developer ID, notarization and `syspolicy_check distribution` are checked independently.

@@ -8,8 +8,8 @@
 <key>CFBundleName</key><string>AetherNote</string>
 <key>CFBundleDisplayName</key><string>AetherNote</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.2</string>
-<key>CFBundleVersion</key><string>2026101302</string>
+<key>CFBundleShortVersionString</key><string>0.1.3</string>
+<key>CFBundleVersion</key><string>2026101303</string>
 <key>SUFeedURL</key><string>https://aethernative.com/apps/aethernote/appcast.xml</string>
 <key>SUPublicEDKey</key><string>r4vCUXcvXnm1Y9oxJ4pbKqOZ+76IOkH/ilZj1MvmMUg=</string>
 <key>SUEnableAutomaticChecks</key><false/>
