@@ -12,33 +12,36 @@ private var utc: Calendar { var c = Calendar.journal; c.timeZone = TimeZone(seco
     #expect(Set(j.records(on: day).map(\.id)).count == 3)
 }
 
-@Test func midnightSealsAppendEditAndDeleteEvenIfEditorIsOpen() throws {
+@Test func pastDaySupportsAppendEditAndDeleteAfterMidnight() throws {
     let before = date("2026-10-12T23:59:59Z"), after = date("2026-10-13T00:00:00Z"), day = Day(before, calendar: utc)
-    var j = Journal(); try j.append("immutable after midnight", on: day, now: before, calendar: utc)
-    let id = j.records(on: day)[0].id, snapshot = j
-    #expect(throws: JournalError.sealed) { try j.append("late", on: day, now: after, calendar: utc) }
-    #expect(throws: JournalError.sealed) { try j.edit(id, text: "changed", on: day, now: after, calendar: utc) }
-    #expect(throws: JournalError.sealed) { try j.remove(id, on: day, now: after, calendar: utc) }
-    #expect(j == snapshot)
-    try j.append("new day", on: Day(after, calendar: utc), now: after, calendar: utc)
-    #expect(j.records(on: day)[0].text == "immutable after midnight")
+    var j = Journal(); try j.append("original", on: day, now: before, calendar: utc)
+    let original = j.records(on: day)[0]
+    j.observe(after, calendar: utc)
+    try j.append("added later", on: day, now: after, calendar: utc)
+    try j.edit(original.id, text: "corrected", on: day, now: after, calendar: utc)
+    #expect(j.records(on: day)[0].createdAt == original.createdAt)
+    #expect(j.records(on: day)[0].modifiedAt == after)
+    #expect(j.records(on: day).map(\.text) == ["corrected", "added later"])
+    try j.remove(original.id, on: day, now: after, calendar: utc)
+    #expect(j.records(on: day).map(\.text) == ["added later"])
+    #expect(j.records(on: Day(after, calendar: utc)).isEmpty)
 }
 
-@Test func clockRollbackDoesNotReopenPastDay() throws {
-    let now = date("2026-10-13T10:00:00Z"), old = date("2026-10-12T10:00:00Z")
-    var j = Journal(); j.observe(now, calendar: utc)
-    #expect(!j.canEdit(Day(old, calendar: utc), now: old, calendar: utc))
-    #expect(throws: JournalError.sealed) { try j.append("rollback", on: Day(old, calendar: utc), now: old, calendar: utc) }
-    let reopened = try JSONDecoder().decode(Journal.self, from: JSONEncoder().encode(j))
-    #expect(!reopened.canEdit(Day(old, calendar: utc), now: old, calendar: utc))
+@Test func legacyHighWaterMarkDoesNotLockHistoricalRecords() throws {
+    let now = date("2026-10-13T10:00:00Z"), old = date("2026-10-12T10:00:00Z"), day = Day(old, calendar: utc)
+    var j = Journal(); try j.append("v0.1.0 record", on: day, now: old, calendar: utc); j.observe(now, calendar: utc)
+    var reopened = try JSONDecoder().decode(Journal.self, from: JSONEncoder().encode(j))
+    #expect(reopened.canEdit(day, now: old, calendar: utc))
+    try reopened.edit(reopened.records(on: day)[0].id, text: "edited after upgrade", on: day, now: now, calendar: utc)
+    #expect(reopened.records(on: day)[0].text == "edited after upgrade")
 }
 
 @Test func futureDatesCannotBeWritten() throws {
     let now = date("2026-10-12T10:00:00Z"); var j = Journal()
-    #expect(throws: JournalError.sealed) { try j.append("future", on: Day(rawValue: "2026-10-13"), now: now, calendar: utc) }
+    #expect(throws: JournalError.futureDate) { try j.append("future", on: Day(rawValue: "2026-10-13"), now: now, calendar: utc) }
 }
 
-@Test func arrangingSealedDaysNeverChangesRecords() throws {
+@Test func arrangingHistoricalDaysNeverChangesRecords() throws {
     let now = date("2026-10-12T10:00:00Z"), day = Day(now, calendar: utc); var j = Journal()
     try j.append("keep", on: day, now: now, calendar: utc)
     j.observe(date("2026-10-13T10:00:00Z"), calendar: utc)
@@ -124,13 +127,13 @@ private var utc: Calendar { var c = Calendar.journal; c.timeZone = TimeZone(seco
     #expect(j.records(on: day).isEmpty)
 }
 
-@Test func travelingWestDoesNotReopenYesterday() {
+@Test func travelingWestKeepsPastDaysEditable() {
     let instant = date("2026-10-13T01:00:00Z")
     var shanghai = utc; shanghai.timeZone = TimeZone(identifier: "Asia/Shanghai")!
     var la = utc; la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
     var j = Journal(); j.observe(instant, calendar: shanghai)
     #expect(Day(instant, calendar: la).rawValue == "2026-10-12")
-    #expect(!j.canEdit(Day(instant, calendar: la), now: instant, calendar: la))
+    #expect(j.canEdit(Day(instant, calendar: la), now: instant, calendar: la))
 }
 
 @Test func recordedActivityDefersReminder() {

@@ -60,7 +60,7 @@ struct DayEditor: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(day.rawValue).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
                     Text(model.weekday(day)).font(.system(size: 30, weight: .semibold, design: .rounded))
-                    Text(model.l(day == model.today ? "welcome" : day < model.today ? "sealedHint" : "futureHint")).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(model.l(day == model.today ? "welcome" : day < model.today ? "historyHint" : "futureHint")).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 IconButton(symbol: "doc.on.doc", title: model.l("copy")) { model.copy(model.journal.records(on: day).map(\.text).joined(separator: "\n")) }
@@ -91,7 +91,7 @@ struct DayEditor: View {
                         Button(model.l("append")) { _ = model.append(draft.wrappedValue, day: day) }.buttonStyle(.borderedProminent).disabled(draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 } else {
-                    Label(model.l(day > model.today ? "futureHint" : "sealedHint"), systemImage: "lock").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Label(model.l(day > model.today ? "futureHint" : "historyHint"), systemImage: "lock").font(.system(size: 12)).foregroundStyle(.secondary)
                     if !draft.wrappedValue.isEmpty {
                         Text(model.l("draft")).font(.caption)
                         Text(draft.wrappedValue).font(.caption).textSelection(.enabled).lineLimit(4)
@@ -105,13 +105,7 @@ struct DayEditor: View {
             Button(model.l("cancel"), role: .cancel) { deleting = nil }
             Button(model.l("delete"), role: .destructive) { if let deleting { model.remove(deleting, day: day) }; deleting = nil }
         }
-        .onChange(of: model.today) { _, _ in
-            if let entry = editing, editText != entry.text {
-                let previous = model.drafts[day.rawValue] ?? ""
-                model.setDraft(previous.isEmpty ? editText : previous + "\n" + editText, day: day)
-            }
-            editing = nil
-        }
+
     }
     @ViewBuilder private func entryRow(_ entry: Entry) -> some View {
         HStack(alignment: .top, spacing: 14) {
@@ -140,7 +134,7 @@ struct ReviewView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("AETHERNOTE / \(model.weekLabel)").font(.system(size: 10, weight: .medium, design: .monospaced)).tracking(2).foregroundStyle(.secondary)
                     Text(model.l("review")).font(.system(size: 30, weight: .semibold, design: .rounded))
-                    Text(model.l("readonlyReview")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(model.l("reviewHint")).font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 IconButton(symbol: "chevron.left", title: model.l("previous")) { model.navigateWeek(-1) }
@@ -154,7 +148,6 @@ struct ReviewView: View {
                             VStack(alignment: .leading, spacing: 7) {
                                 Text(String(day.rawValue.suffix(2))).font(.system(size: 29, weight: .light, design: .rounded))
                                 Text(model.weekday(day)).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                                if day < model.today { Image(systemName: "lock").font(.system(size: 9)).foregroundStyle(.tertiary) }
                             }.frame(width: 54, alignment: .leading)
                             VStack(alignment: .leading, spacing: 13) {
                                 if model.journal.records(on: day).isEmpty { Text(model.l(day > model.today ? "future" : "noEntries")).font(.system(size: 13)).foregroundStyle(.tertiary).padding(.top, 7) }
@@ -208,7 +201,7 @@ struct SettingsView: View {
             }
             Section {
                 Text(model.l("shortcut")).font(.caption).foregroundStyle(.secondary)
-                HStack { Text("AetherNote 0.1.0"); Spacer(); Text("Made for little things.").foregroundStyle(.tertiary) }.font(.caption)
+                HStack { Text("AetherNote 0.1.1"); Spacer(); Text("Made for little things.").foregroundStyle(.tertiary) }.font(.caption)
             }
         }.formStyle(.grouped).frame(minWidth: 520, minHeight: 650).errors(model)
     }

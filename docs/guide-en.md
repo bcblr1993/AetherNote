@@ -1,12 +1,12 @@
 # AetherNote guide
 
-A native, local-only activity journal for macOS. Write what you did, one line at a time. Each day hangs from a clothesline; yesterday's content becomes read-only.
+A native, local-only activity journal for macOS. Write what you did, one line at a time. Each day hangs from a clothesline; every past day remains editable.
 
 ## Everyday use
 
 - Click the menu bar note icon to show or hide the line. Click today to write.
 - Return appends an entry. Shift + Return inserts a newline; submitting a multiline draft creates one entry per nonempty line. The editor respects marked text during IME composition.
-- Today's entries can be edited or deleted. Past and future dates cannot be written. The guard runs when saving, including if an editor was left open overnight.
+- Today and all past days support adding, editing and deleting entries. Editing can continue in the same note across midnight. Future dates remain unavailable until that day arrives.
 - Drag cards horizontally to reorder; vertical movement springs back. Pull the rope, double-click it to tidy, or click the sparkle button. Rearranging never changes journal dates or contents.
 - Weekdays appear by default. Enable weekends in Settings; days with weekend entries and today's weekend card always remain visible. At most seven cards appear, and previous weeks remain available.
 - Week in review shows entries in date order. Copy the week or export Markdown.
@@ -38,7 +38,7 @@ To restore manually:
 
 `journal.previous.json` contains the state before the last successful write, including arrangement writes. Export regular backups; this single rolling copy is not a historical archive.
 
-Sealing is an application behavior, not cryptographic tamper resistance. Dates follow the Mac's local Gregorian calendar. A persisted high-water date prevents clock rollback from reopening a sealed day. If the clock was accidentally set into the future, writing remains locked until the local date catches up. Correct the clock and use a known-good backup if needed.
+Starting with v0.1.1, historical notes are editable. Existing v0.1.0 journals load without conversion and their old high-water metadata no longer locks past dates. Editing preserves the entry's ID, creation time and calendar date; the modification time updates. Dates follow the Mac's local Gregorian calendar.
 
 No network connections, account, analytics, cloud sync, or background AI. The files are not encrypted by this app; macOS account permissions and FileVault remain relevant.
 

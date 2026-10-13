@@ -72,7 +72,7 @@ struct Preferences: Codable {
         do {
             var next = journal; try change(&next); try disk.save(next); journal = next; return true
         } catch let error as JournalError {
-            switch error { case .sealed: errorMessage = l("clockError"); case .empty: errorMessage = l("emptyError"); case .tooLong: errorMessage = l("longError"); default: errorMessage = error.localizedDescription }
+            switch error { case .futureDate: errorMessage = l("futureError"); case .empty: errorMessage = l("emptyError"); case .tooLong: errorMessage = l("longError"); default: errorMessage = error.localizedDescription }
         } catch { errorMessage = l("saveError") + "\n" + error.localizedDescription }
         return false
     }

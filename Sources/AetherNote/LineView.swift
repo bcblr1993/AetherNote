@@ -114,7 +114,7 @@ struct DayCard: View {
                 }
                 HStack {
                     if day == model.today { Text(model.l("today")).foregroundStyle(Color.accentColor) }
-                    else if day < model.today { Image(systemName: "lock.fill"); Text(model.l("sealed")) }
+                    else if day < model.today { Image(systemName: "pencil"); Text(model.l("editable")) }
                     Spacer(minLength: 0)
                     if !records.isEmpty { Text("\(records.count)").monospacedDigit() }
                 }.font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
@@ -123,7 +123,7 @@ struct DayCard: View {
         }
         .contentShape(Rectangle()).onTapGesture(perform: open).onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(day.rawValue), \(model.weekday(day)), \(records.count) \(model.l("entries")), \(model.l(day == model.today ? "today" : day < model.today ? "sealed" : "future"))")
+        .accessibilityLabel("\(day.rawValue), \(model.weekday(day)), \(records.count) \(model.l("entries")), \(model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"))")
         .accessibilityAddTraits(.isButton).accessibilityAction { open() }
         .accessibilityAction(named: Text(model.l("moveLeft"))) { model.move(day, by: -1) }
         .accessibilityAction(named: Text(model.l("moveRight"))) { model.move(day, by: 1) }

@@ -2,7 +2,7 @@
 
 **把做过的小事，挂在这一周的晾衣绳上。**
 
-A small, native macOS journal. One note per day, up to seven on a playful clothesline. Write throughout the day; let yesterday stay yesterday.
+A small, native macOS journal. One note per day, up to seven on a playful clothesline. Write throughout the day, and return to any past day to add or edit.
 
 [下载 / Download](https://github.com/bcblr1993/AetherNote/releases/latest) · [English guide](docs/guide-en.md) · [测试与发布](docs/verification.md)
 
@@ -16,8 +16,8 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 ## 首版功能
 
-- **随手记一行**：回车追加，Shift + 回车换行；粘贴多行会分成多条记录。今天可以修改和删除。
-- **过日即封存**：按本机日历日期封存，昨天只能阅读和复制。保存时再次检查日期，系统时间回拨也不会重新打开已经观察到的历史日期。
+- **随手记一行**：回车追加，Shift + 回车换行；粘贴多行会分成多条记录。今天和历史日期都可以补充、修改和删除。
+- **每天都可编辑**：历史便签也能随时补充、修订或删除内容；跨过午夜仍可继续编辑原来的日期。未来日期到当天再开始记录。
 - **一周一条晾衣绳**：默认周一到周五，可显示周末；周末已有记录或当天为周末时自动显示，最多七张。旧周可以翻阅。
 - **拖动与整理**：左右拖动换位，上下拉动回弹，拖绳子也有弹性；一键或双击绳子按日期整理。拖动不会改变日期或正文。
 - **三种材质、三种语言**：Liquid Glass、暖色纸张、极简纸张；简体中文、English、日本語，默认跟随系统。
@@ -36,7 +36,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 4. 固定按钮让晾衣绳保持显示。未固定时鼠标离开后收起。
 5. 右键卡片可向左/右移动；右键菜单栏图标可打开设置或退出。
 
-> 封存是应用内的记录规则，不是防篡改审计或加密存储。系统日期被错误地调到未来，或跨时区导致日期回退时，应用会保守保持只读，直到日期追上已观察到的日期。备份文件可以被用户手工修改。
+> v0.1.1 起，历史便签不再封存。旧版数据无需转换，更新后即可编辑；修改保留记录原始创建时间和所属日期。
 
 ## 数据与隐私
 
@@ -44,7 +44,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 数据目录：`~/Library/Application Support/AetherNote/`
 
-- `journal.json`：正文、日期封存标记、显示顺序。
+- `journal.json`：正文、日期元数据、显示顺序。
 - `journal.previous.json`：最近一次成功写入之前的版本（不是长期历史备份）。
 - `drafts.json`：尚未提交的草稿，跨日后可以带到今天。
 - `preferences.json`：外观和提醒偏好。

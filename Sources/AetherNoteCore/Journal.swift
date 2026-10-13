@@ -1,10 +1,10 @@
 import Foundation
 
 public enum JournalError: Error, LocalizedError, Equatable {
-    case sealed, empty, tooLong, missingEntry, invalidDate, unsupportedSchema, invalidData
+    case futureDate, empty, tooLong, missingEntry, invalidDate, unsupportedSchema, invalidData
     public var errorDescription: String? {
         switch self {
-        case .sealed: return "This day is sealed and cannot be changed."
+        case .futureDate: return "Future dates cannot be changed yet."
         case .empty: return "Write at least one line."
         case .tooLong: return "An entry may contain at most 4,000 characters."
         case .missingEntry: return "The entry no longer exists."
@@ -67,7 +67,7 @@ public struct Journal: Codable, Equatable, Sendable {
     public private(set) var schemaVersion = 1
     public private(set) var entries: [String: [Entry]] = [:]
     public private(set) var arrangements: [String: [String]] = [:]
-    /// High-water mark prevents a backward clock or timezone change from reopening a sealed day.
+    /// Retained for v0.1.0 file compatibility; historical dates are now editable.
     public private(set) var latestObservedDay: Day?
     public init() {}
 
@@ -98,12 +98,12 @@ public struct Journal: Codable, Equatable, Sendable {
     }
     public func canEdit(_ day: Day, now: Date, calendar: Calendar = .journal) -> Bool {
         let today = Day(now, calendar: calendar)
-        return day == today && (latestObservedDay == nil || today >= latestObservedDay!)
+        return day.date(calendar: calendar) != nil && day <= today
     }
     public func records(on day: Day) -> [Entry] { entries[day.rawValue] ?? [] }
 
     public mutating func append(_ text: String, on day: Day, now: Date, calendar: Calendar = .journal) throws {
-        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.sealed }
+        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
         let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !lines.isEmpty else { throw JournalError.empty }
         guard lines.allSatisfy({ $0.count <= 4_000 }) else { throw JournalError.tooLong }
@@ -111,7 +111,7 @@ public struct Journal: Codable, Equatable, Sendable {
         entries[day.rawValue, default: []] += lines.map { Entry(text: $0, at: now) }
     }
     public mutating func edit(_ id: UUID, text: String, on day: Day, now: Date, calendar: Calendar = .journal) throws {
-        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.sealed }
+        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { throw JournalError.empty }
         guard value.count <= 4_000 else { throw JournalError.tooLong }
@@ -121,7 +121,7 @@ public struct Journal: Codable, Equatable, Sendable {
         entries[day.rawValue]![index].modifiedAt = max(now, entries[day.rawValue]![index].createdAt)
     }
     public mutating func remove(_ id: UUID, on day: Day, now: Date, calendar: Calendar = .journal) throws {
-        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.sealed }
+        guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
         guard let index = entries[day.rawValue]?.firstIndex(where: { $0.id == id }) else { throw JournalError.missingEntry }
         observe(now, calendar: calendar); entries[day.rawValue]!.remove(at: index)
     }
