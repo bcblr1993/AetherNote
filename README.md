@@ -28,6 +28,12 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 - **应用内更新**：设置或菜单中的“检查更新…”会显示新版信息，下载后点击安装并重新启动。更新包经过签名校验，默认不自动检查、下载或重启。
 - 本地保存、草稿自动保存、完整 JSON 备份、菜单栏入口、全局快捷键、可选登录启动。
 
+## main 分支新增：每日配色（尚未发布）
+
+每天自动分配一款柔和颜色，同周默认不重复，重新打开不会变色。在每日记录右上角点击“便签颜色”，可以选用八款预设、系统选色器或输入 HEX 色值；自定义颜色先预览、再点击“应用”。“换个随机颜色”会选一款不同的预设并保存。右键晾衣绳卡片也能快速换色。
+
+颜色跟随日期，在晾衣绳、当天记录和本周回顾中一致显示；拖动、一键整理不会影响配色或记录。配色包含在完整 JSON 备份中，旧版日记无需转换。
+
 ## 安装与使用
 
 发布的二进制适用于 **Apple Silicon（M 系列）Mac，macOS 14 或更新版本**。完整 macOS 27 玻璃效果需要 macOS 27。Intel 暂不提供预编译包。
@@ -48,7 +54,7 @@ A small, native macOS journal. One note per day, up to seven on a playful clothe
 
 数据目录：`~/Library/Application Support/AetherNote/`
 
-- `journal.json`：正文、日期元数据、显示顺序。
+- `journal.json`：正文、日期元数据、显示顺序；main 分支还包含每日配色。
 - `journal.previous.json`：最近一次成功写入之前的版本（不是长期历史备份）。
 - `drafts.json`：尚未提交的草稿，跨日后可以带到今天。
 - `preferences.json`：外观和提醒偏好。

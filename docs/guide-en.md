@@ -19,6 +19,12 @@ Chinese, English, Japanese, or system language. Liquid Glass, warm paper, or cle
 
 The release targets Apple Silicon and macOS 14+. macOS 26 and 27 use native `NSGlassEffectView`, with spring-driven dragging and hover feedback. Earlier systems use `NSVisualEffectView`. Reduced motion disables playful animations. Reduced transparency uses an opaque surface, and increased contrast strengthens outlines. Cards expose accessible open and move actions.
 
+## Daily colors (main branch, not released yet)
+
+Each date gets a stable, softly tinted automatic color; the default seven-day palette has no repeats. Open **Note color** in a day’s editor to choose a preset, use the system color picker, or enter a six-digit HEX color. Custom colors are previewed until you click **Apply**. **Surprise me** picks a different preset, switches back to automatic mode, and saves it. The clothesline context menu also offers quick presets.
+
+Colors stay with their dates through rearranging, tidying, week navigation and restarts. The editor, clothesline and weekly review share the same color. Full JSON journal backups include colors; existing journals load without migration. Future dates can have a color without creating or editing entries.
+
 ## Quiet reminders
 
 After an hour without a new or edited entry, a small mark appears in the menu bar. No sound, notification permission, focus changes, or automatic reminder window. Clicking the mark opens today's editor. Right-click and choose Not now to dismiss it. Disable reminders or preview the mark from Settings.
@@ -42,7 +48,7 @@ To restore manually:
 3. Copy the desired exported JSON backup to `journal.json` in the data directory.
 4. Reopen AetherNote. Invalid data is rejected without being overwritten.
 
-`journal.previous.json` contains the state before the last successful write, including arrangement writes. Export regular backups; this single rolling copy is not a historical archive.
+`journal.previous.json` contains the state before the last successful write, including arrangement and color writes. Export regular backups; this single rolling copy is not a historical archive.
 
 Starting with v0.1.1, historical notes are editable. Existing v0.1.0 journals load without conversion and their old high-water metadata no longer locks past dates. Editing preserves the entry's ID, creation time and calendar date; the modification time updates. Dates follow the Mac's local Gregorian calendar.
 

@@ -58,15 +58,16 @@ struct DayEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top) {
-                PanelHeading(symbol: "square.and.pencil", title: model.weekday(day), subtitle: day.rawValue)
+                PanelHeading(symbol: "square.and.pencil", title: model.weekday(day), subtitle: day.rawValue, tint: model.dayColor(day).tint)
                 Spacer()
                 StatusPill(text: model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"), accent: day == model.today)
+                DayColorButton(day: day)
                 IconButton(symbol: "doc.on.doc", title: model.l("copy")) { model.copy(records.map(\.text).joined(separator: "\n")) }.disabled(records.isEmpty)
             }.padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 20)
             HStack {
                 Text(model.l(day > model.today ? "futureHint" : "welcome")).font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
-                Text("\(records.count) \(model.l("entries"))").font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                Text(model.entryCount(records.count)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
             }.padding(.horizontal, 26).padding(.bottom, 12)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -85,7 +86,7 @@ struct DayEditor: View {
                 }
             }
             composer.padding(20)
-        }.padding(.top, 28).noteSurface().ignoresSafeArea().frame(minWidth: 520, minHeight: 540).errors(model)
+        }.padding(.top, 28).noteSurface(tint: model.dayColor(day).tint).ignoresSafeArea().frame(minWidth: 520, minHeight: 540).errors(model)
         .onChange(of: editing?.id) { _, _ in updateEditingState() }
         .onChange(of: editText) { _, _ in updateEditingState() }
         .onDisappear { model.hasUnsavedEdit = false }
@@ -171,7 +172,7 @@ struct ReviewView: View {
             HStack(spacing: 10) {
                 Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(GlassButton()).help(model.l("thisWeek"))
                 Spacer()
-                StatusPill(text: "\(total) \(model.l("entries"))", accent: true)
+                StatusPill(text: model.entryCount(total), accent: true)
                 StatusPill(text: "\(model.l("recordedDays")) · \(recordedDays) / 7")
             }.padding(.horizontal, 24).padding(.bottom, 16)
             ScrollViewReader { proxy in
@@ -184,8 +185,8 @@ struct ReviewView: View {
                                 VStack(spacing: 6) {
                                     Text(model.weekday(day)).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                                     Text(String(day.rawValue.suffix(2))).font(.system(size: 20, weight: .medium, design: .rounded))
-                                    Circle().fill(model.journal.records(on: day).isEmpty ? Color.primary.opacity(0.13) : Color.accentColor).frame(width: 4, height: 4)
-                                }.frame(maxWidth: .infinity).padding(.vertical, 12).insetSurface(selected: day == model.today)
+                                    Circle().fill(model.journal.records(on: day).isEmpty ? Color.primary.opacity(0.13) : model.dayColor(day).tint).frame(width: 4, height: 4)
+                                }.frame(maxWidth: .infinity).padding(.vertical, 12).insetSurface(selected: day == model.today, tint: model.dayColor(day).tint)
                             }.buttonStyle(.plain).help(day.rawValue)
                         }
                     }.padding(.horizontal, 24)
@@ -209,14 +210,14 @@ struct ReviewView: View {
             VStack(spacing: 4) {
                 Text(String(day.rawValue.suffix(2))).font(.system(size: 25, weight: .medium, design: .rounded))
                 Text(model.weekday(day)).font(.system(size: 10)).foregroundStyle(.secondary)
-            }.frame(width: 46).padding(.top, 2).foregroundStyle(day == model.today ? Color.accentColor : .primary)
+            }.frame(width: 46).padding(.vertical, 8).background(model.dayColor(day).tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 12) {
                 if model.journal.records(on: day).isEmpty {
                     Text(model.l(day > model.today ? "future" : "noEntries")).font(.system(size: 12)).foregroundStyle(.secondary).padding(.vertical, 14)
                 }
                 ForEach(model.journal.records(on: day)) { entry in
                     HStack(alignment: .top, spacing: 10) {
-                        Circle().fill(Color.accentColor.opacity(0.6)).frame(width: 4, height: 4).padding(.top, 8)
+                        Circle().fill(model.dayColor(day).tint).frame(width: 4, height: 4).padding(.top, 8)
                         Text(entry.text).font(.system(size: 14)).lineSpacing(4).textSelection(.enabled)
                     }
                 }
@@ -224,7 +225,7 @@ struct ReviewView: View {
             if model.canEdit(day) {
                 IconButton(symbol: "arrow.up.right", title: model.l("edit")) { model.onOpenDay?(day) }
             }
-        }.padding(16).insetSurface()
+        }.padding(16).insetSurface(tint: model.dayColor(day).tint)
     }
 }
 

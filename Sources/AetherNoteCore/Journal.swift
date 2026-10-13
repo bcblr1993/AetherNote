@@ -66,6 +66,7 @@ public struct Entry: Codable, Equatable, Identifiable, Sendable {
 public struct Journal: Codable, Equatable, Sendable {
     public private(set) var schemaVersion = 1
     public private(set) var entries: [String: [Entry]] = [:]
+    public private(set) var dayColors: [String: DayColor]?
     public private(set) var arrangements: [String: [String]] = [:]
     /// Retained for v0.1.0 file compatibility; historical dates are now editable.
     public private(set) var latestObservedDay: Day?
@@ -74,6 +75,9 @@ public struct Journal: Codable, Equatable, Sendable {
     public func validate(calendar: Calendar = .journal) throws {
         guard schemaVersion == 1 else { throw JournalError.unsupportedSchema }
         if let latestObservedDay, latestObservedDay.date(calendar: calendar) == nil { throw JournalError.invalidData }
+        for (key, color) in dayColors ?? [:] {
+            guard Day(rawValue: key).date(calendar: calendar) != nil, color.rgb <= 0xFFFFFF else { throw JournalError.invalidData }
+        }
         var ids = Set<UUID>()
         for (key, values) in entries {
             guard Day(rawValue: key).date(calendar: calendar) != nil else { throw JournalError.invalidData }
@@ -124,6 +128,20 @@ public struct Journal: Codable, Equatable, Sendable {
         guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
         guard let index = entries[day.rawValue]?.firstIndex(where: { $0.id == id }) else { throw JournalError.missingEntry }
         observe(now, calendar: calendar); entries[day.rawValue]!.remove(at: index)
+    }
+    public func color(on day: Day, calendar: Calendar = .journal) -> DayColor {
+        dayColors?[day.rawValue] ?? DayColor.automatic(for: day, calendar: calendar)
+    }
+    public mutating func setColor(_ color: DayColor, on day: Day, calendar: Calendar = .journal) throws {
+        guard day.date(calendar: calendar) != nil else { throw JournalError.invalidDate }
+        guard color.rgb <= 0xFFFFFF else { throw JournalError.invalidData }
+        if dayColors == nil { dayColors = [:] }
+        dayColors?[day.rawValue] = color
+    }
+    public mutating func randomizeColor(on day: Day, calendar: Calendar = .journal) throws {
+        let current = color(on: day, calendar: calendar).rgb
+        let next = DayColor.palette.filter { $0 != current }.randomElement()!
+        try setColor(DayColor(rgb: next, isCustom: false), on: day, calendar: calendar)
     }
     public func arranged(_ days: [Day], week: Day) -> [Day] {
         let saved = arrangements[week.rawValue] ?? []

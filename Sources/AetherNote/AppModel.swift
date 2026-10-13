@@ -54,6 +54,7 @@ struct Preferences: Codable {
         guard let date = day.date() else { return day.rawValue }
         let f = DateFormatter(); f.locale = preferences.language.locale; f.dateFormat = "EEE"; return f.string(from: date)
     }
+    func entryCount(_ count: Int) -> String { "\(count) \(l(count == 1 ? "entry" : "entries"))" }
     func shortDate(_ day: Day) -> String { String(day.rawValue.suffix(5)).replacingOccurrences(of: "-", with: "/") }
     var weekLabel: String { "\(shortDate(allWeekDays[0])) — \(shortDate(allWeekDays[6]))" }
     func canEdit(_ day: Day) -> Bool { journal.canEdit(day, now: clock()) }
@@ -105,6 +106,9 @@ struct Preferences: Codable {
             return true
         } catch { errorMessage = l("saveError"); return false }
     }
+    func dayColor(_ day: Day) -> DayColor { journal.color(on: day) }
+    func setColor(_ rgb: UInt32, day: Day) { _ = transact { try $0.setColor(DayColor(rgb: rgb), on: day) } }
+    func randomizeColor(_ day: Day) { _ = transact { try $0.randomizeColor(on: day) } }
     func reorder(_ day: Day, to target: Day) {
         var order = visibleDays
         guard let a = order.firstIndex(of: day), let b = order.firstIndex(of: target), a != b else { return }

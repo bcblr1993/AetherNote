@@ -56,6 +56,15 @@ struct LineView: View {
                             Button(model.l("moveLeft")) { withAnimation(spring) { model.move(day, by: -1) } }.disabled(index == 0)
                             Button(model.l("moveRight")) { withAnimation(spring) { model.move(day, by: 1) } }.disabled(index == days.count - 1)
                             Divider()
+                            Menu(model.l("dayColor")) {
+                                ForEach(Array(DayColor.palette.enumerated()), id: \.element) { index, rgb in
+                                    Button { model.setColor(rgb, day: day) } label: {
+                                        Label(model.l(DayColor.names[index]), systemImage: model.dayColor(day).rgb == rgb ? "checkmark.circle.fill" : "circle")
+                                    }
+                                }
+                                Divider()
+                                Button(model.l("randomColor")) { model.randomizeColor(day) }
+                            }
                             Button(model.l("copy")) { model.copy(model.journal.records(on: day).map(\.text).joined(separator: "\n")) }
                         }
                 }
@@ -91,7 +100,7 @@ struct DayCard: View {
     private var records: [Entry] { model.journal.records(on: day) }
     var body: some View {
         VStack(spacing: -5) {
-            Capsule().fill(day == model.today ? Color.accentColor : Color.gray.opacity(0.8)).frame(width: 9, height: 25).overlay(Capsule().strokeBorder(.white.opacity(0.5), lineWidth: 1)).zIndex(2)
+            Capsule().fill(model.dayColor(day).tint).frame(width: 9, height: 25).overlay(Capsule().strokeBorder(.white.opacity(0.5), lineWidth: 1)).zIndex(2)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(model.weekday(day)).font(.system(size: 12, weight: .semibold))
@@ -106,7 +115,7 @@ struct DayCard: View {
                     VStack(alignment: .leading, spacing: 7) {
                         ForEach(records.prefix(3)) { entry in
                             HStack(alignment: .top, spacing: 5) {
-                                Circle().fill(Color.accentColor.opacity(0.65)).frame(width: 3, height: 3).padding(.top, 6)
+                                Circle().fill(model.dayColor(day).tint).frame(width: 3, height: 3).padding(.top, 6)
                                 Text(entry.text).font(.system(size: 12)).lineLimit(2)
                             }
                         }
@@ -120,13 +129,13 @@ struct DayCard: View {
                     if !records.isEmpty { Text("\(records.count)").monospacedDigit() }
                 }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
             }.padding(13).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .noteSurface().shadow(color: .black.opacity(hovered ? 0.18 : 0.1), radius: hovered ? 15 : 8, y: hovered ? 8 : 4)
+                .noteSurface(tint: model.dayColor(day).tint).shadow(color: .black.opacity(hovered ? 0.18 : 0.1), radius: hovered ? 15 : 8, y: hovered ? 8 : 4)
         }
         .scaleEffect(hovered && !model.reduceMotion ? 1.025 : 1)
         .animation(model.reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: hovered)
         .contentShape(Rectangle()).onTapGesture(perform: open).onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(day.rawValue), \(model.weekday(day)), \(records.count) \(model.l("entries")), \(model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"))")
+        .accessibilityLabel("\(day.rawValue), \(model.weekday(day)), \(model.entryCount(records.count)), \(model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"))")
         .accessibilityAddTraits(.isButton).accessibilityAction { open() }
         .accessibilityAction(named: Text(model.l("moveLeft"))) { model.move(day, by: -1) }
         .accessibilityAction(named: Text(model.l("moveRight"))) { model.move(day, by: 1) }
