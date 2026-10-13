@@ -170,7 +170,8 @@ struct ReviewView: View {
                 IconButton(symbol: "chevron.right", title: model.l("next")) { model.navigateWeek(1) }
             }.padding(24)
             HStack(spacing: 10) {
-                Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(GlassButton()).help(model.l("thisWeek"))
+                Button(model.weekLabel) { model.returnToCurrentWeek() }.buttonStyle(GlassButton()).help(model.l("thisWeek"))
+                CurrentWeekButton()
                 Spacer()
                 StatusPill(text: model.entryCount(total), accent: true)
                 StatusPill(text: "\(model.l("recordedDays")) · \(recordedDays) / 7")

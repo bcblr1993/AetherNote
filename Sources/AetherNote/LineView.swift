@@ -79,8 +79,9 @@ struct LineView: View {
             Text("AetherNote").font(.system(size: 13, weight: .semibold, design: .rounded))
             Divider().frame(height: 15)
             IconButton(symbol: "chevron.left", title: model.l("previous")) { model.navigateWeek(-1) }
-            Button(model.weekLabel) { model.week = model.today.week().first! }.buttonStyle(GlassButton()).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
+            Button(model.weekLabel) { model.returnToCurrentWeek() }.buttonStyle(GlassButton()).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
             IconButton(symbol: "chevron.right", title: model.l("next")) { model.navigateWeek(1) }
+            CurrentWeekButton()
             Spacer(minLength: 4)
             Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus") }.buttonStyle(AccentButton())
             IconButton(symbol: "sparkles", title: model.l("tidy")) { withAnimation(spring) { model.tidy() } }

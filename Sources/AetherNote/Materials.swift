@@ -152,3 +152,16 @@ struct IconButton: View {
             .help(title).accessibilityLabel(title)
     }
 }
+
+struct CurrentWeekButton: View {
+    @EnvironmentObject var model: AppModel
+    var body: some View {
+        Button { model.returnToCurrentWeek() } label: {
+            Label(model.l("thisWeek"), systemImage: "arrow.uturn.backward")
+                .fixedSize()
+        }
+        .buttonStyle(GlassButton())
+        .accessibilityIdentifier("return-current-week")
+        .help(model.l("thisWeek"))
+    }
+}

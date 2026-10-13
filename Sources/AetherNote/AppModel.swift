@@ -120,6 +120,10 @@ struct Preferences: Codable {
         reorder(day, to: days[i + offset])
     }
     func tidy() { if transact({ $0.tidy(week: week) }) { showToast(l("tidied")) } }
+    func returnToCurrentWeek() {
+        now = clock()
+        week = today.week().first!
+    }
     func navigateWeek(_ offset: Int) { week = week.adding(days: 7 * offset) }
     func copy(_ text: String) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string); showToast(l("copied")) }
     func showToast(_ text: String) { toastTask?.cancel(); toast = text; toastTask = Task { try? await Task.sleep(for: .seconds(2)); if !Task.isCancelled { toast = nil } } }
