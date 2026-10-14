@@ -72,7 +72,7 @@ Maintainers can sign and notarize a tested app using `scripts/release.sh`, with 
 
 Sparkle update signing uses the `AetherNote` account in the macOS Keychain. `scripts/release.sh` signs the final stapled DMG, verifies its Ed25519 signature, and writes `dist/sparkle-<version>.txt`. Include that signature and byte length in the website release entry before deploying its appcast. Never export private signing keys into the repository.
 
-## Next version (unreleased): clothesline controls
+## v0.1.4: clothesline controls
 
 The toolbar now has a labeled **Tidy the line** button. Settings and the menu bar menu also provide this action. It restores the viewed week to date order without changing entries, colors, drafts or other weeks.
 
