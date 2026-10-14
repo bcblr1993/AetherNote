@@ -71,3 +71,9 @@ The packaged app includes Sparkle and its license. `scripts/check-updater.py` va
 Maintainers can sign and notarize a tested app using `scripts/release.sh`, with `SIGNING_IDENTITY` and `NOTARY_PROFILE` environment variables. Do not put credentials in the repository. If notarization remains In Progress after interruption, use the submission ID to wait for it instead of submitting the same archive again. A release must pass the checks in [verification.md](verification.md).
 
 Sparkle update signing uses the `AetherNote` account in the macOS Keychain. `scripts/release.sh` signs the final stapled DMG, verifies its Ed25519 signature, and writes `dist/sparkle-<version>.txt`. Include that signature and byte length in the website release entry before deploying its appcast. Never export private signing keys into the repository.
+
+## Next version (unreleased): clothesline controls
+
+The toolbar now has a labeled **Tidy the line** button. Settings and the menu bar menu also provide this action. It restores the viewed week to date order without changing entries, colors, drafts or other weeks.
+
+The first Settings section includes **Enable clothesline**. Turn it off to keep the line hidden, including after relaunch, while continuing to write and review through the menu bar. Top-edge reveal is a separate setting: it defaults off for new installs, preserves existing preferences and requires a continuous 0.6-second hover when enabled.

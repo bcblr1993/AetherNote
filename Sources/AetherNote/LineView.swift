@@ -84,7 +84,9 @@ struct LineView: View {
             CurrentWeekButton()
             Spacer(minLength: 4)
             Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus") }.buttonStyle(AccentButton())
-            IconButton(symbol: "sparkles", title: model.l("tidy")) { withAnimation(spring) { model.tidy() } }
+            Button { withAnimation(spring) { model.tidy() } } label: {
+                Label(model.l("tidy"), systemImage: "sparkles").fixedSize()
+            }.buttonStyle(GlassButton()).help(model.l("tidyHint")).accessibilityIdentifier("tidy-line")
             IconButton(symbol: "book.closed", title: model.l("review"), action: review)
             IconButton(symbol: model.preferences.pinned ? "pin.fill" : "pin", title: model.l("pin"), selected: model.preferences.pinned) { model.preferences.pinned.toggle() }
             IconButton(symbol: "slider.horizontal.3", title: model.l("settings"), action: settings)

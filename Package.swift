@@ -10,7 +10,8 @@ let package = Package(
         .target(name: "AetherNoteCore"),
         .executableTarget(name: "AetherNote", dependencies: ["AetherNoteCore", .product(name: "Sparkle", package: "Sparkle")],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
-        .testTarget(name: "AetherNoteCoreTests", dependencies: ["AetherNoteCore"])
+        .testTarget(name: "AetherNoteCoreTests", dependencies: ["AetherNoteCore"]),
+        .testTarget(name: "AetherNoteAppTests", dependencies: ["AetherNote"])
     ],
     swiftLanguageModes: [.v5]
 )

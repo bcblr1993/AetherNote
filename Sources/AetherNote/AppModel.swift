@@ -11,9 +11,26 @@ struct Preferences: Codable {
     var material = MaterialStyle.glass
     var showWeekends = false
     var motion = true
-    var edgeReveal = true
+    var edgeReveal = false
+    var lineEnabled = true
     var reminders = true
     var pinned = false
+
+    init() {}
+    private enum CodingKeys: String, CodingKey {
+        case language, material, showWeekends, motion, edgeReveal, lineEnabled, reminders, pinned
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        language = try values.decodeIfPresent(Language.self, forKey: .language) ?? .system
+        material = try values.decodeIfPresent(MaterialStyle.self, forKey: .material) ?? .glass
+        showWeekends = try values.decodeIfPresent(Bool.self, forKey: .showWeekends) ?? false
+        motion = try values.decodeIfPresent(Bool.self, forKey: .motion) ?? true
+        edgeReveal = try values.decodeIfPresent(Bool.self, forKey: .edgeReveal) ?? false
+        lineEnabled = try values.decodeIfPresent(Bool.self, forKey: .lineEnabled) ?? true
+        reminders = try values.decodeIfPresent(Bool.self, forKey: .reminders) ?? true
+        pinned = try values.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
+    }
 }
 
 @MainActor final class AppModel: ObservableObject {

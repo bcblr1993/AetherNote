@@ -23,6 +23,7 @@ final class FloatingPanel: NSPanel {
     var sessionActive = true
     var lastEdge = Date.distantPast
     var hideWork: DispatchWorkItem?
+    var edgeWork: DispatchWorkItem?
     var journalLock: Int32 = -1
     var updates: AppUpdates!
     var customDataDirectory: String?
@@ -59,9 +60,15 @@ final class FloatingPanel: NSPanel {
             alert.addButton(withTitle: "OK"); alert.runModal(); NSApp.terminate(nil); return
         }
         model.onOpenDay = { [weak self] day in self?.openDay(day) }
+        var lineWasEnabled = model.preferences.lineEnabled
         model.onPreferencesChanged = { [weak self] in
             guard let self else { return }
             if !model.preferences.reminders { model.reminderPending = false }
+            cancelEdgeReveal()
+            if model.preferences.pinned { hideWork?.cancel(); hideWork = nil }
+            if !model.preferences.lineEnabled { hideLine() }
+            else if !lineWasEnabled { showLine() }
+            lineWasEnabled = model.preferences.lineEnabled
             updateStatus()
             createApplicationMenu()
             review?.title = model.l("review"); settings?.title = model.l("settings")
@@ -91,6 +98,9 @@ final class FloatingPanel: NSPanel {
     }
     func createApplicationMenu() {
         let menu = NSMenu(), application = NSMenuItem(), submenu = NSMenu()
+        submenu.addItem(withTitle: model.l(model.preferences.lineEnabled ? "disableLine" : "lineEnabled"), action: #selector(toggleLineEnabled), keyEquivalent: "").target = self
+        submenu.addItem(withTitle: model.l("tidy"), action: #selector(tidyLine), keyEquivalent: "").target = self
+        submenu.addItem(.separator())
         submenu.addItem(withTitle: model.l("settings"), action: #selector(openSettings), keyEquivalent: ",").target = self
         submenu.addItem(withTitle: model.l("checkUpdates"), action: #selector(checkForUpdates), keyEquivalent: "").target = self
         submenu.addItem(withTitle: model.l("close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -111,7 +121,9 @@ final class FloatingPanel: NSPanel {
         line.contentView = NSHostingView(rootView: LineView(openDay: { [weak self] in self?.openDay($0) }, review: { [weak self] in self?.openReview() }, settings: { [weak self] in self?.openSettings() }, hide: { [weak self] in self?.hideLine() }).environmentObject(model))
     }
     func showLine() {
-        hideWork?.cancel()
+        guard model.preferences.lineEnabled else { return }
+        cancelEdgeReveal()
+        hideWork?.cancel(); hideWork = nil
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main!
         let width = min(1200, screen.visibleFrame.width - 32)
         line.setFrame(NSRect(x: screen.visibleFrame.midX - width / 2, y: screen.visibleFrame.maxY - 365, width: width, height: 365), display: true)
@@ -119,20 +131,42 @@ final class FloatingPanel: NSPanel {
         line.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in context.duration = model.reduceMotion ? 0 : 0.25; line.animator().alphaValue = 1 }
     }
-    func hideLine() { hideWork?.cancel(); line.orderOut(nil) }
-    @objc func toggleLine() { line.isVisible ? hideLine() : showLine() }
+    func cancelEdgeReveal() { edgeWork?.cancel(); edgeWork = nil }
+    func hideLine() {
+        cancelEdgeReveal(); hideWork?.cancel(); hideWork = nil
+        lastEdge = Date(); line.orderOut(nil)
+    }
+    @objc func toggleLine() {
+        guard model.preferences.lineEnabled else { openSettings(); return }
+        line.isVisible ? hideLine() : showLine()
+    }
+    @objc func toggleLineEnabled() { model.preferences.lineEnabled.toggle() }
+    @objc func tidyLine() { model.tidy() }
+    private func isAtRevealEdge(_ point: NSPoint) -> Bool {
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) else { return false }
+        return point.y >= screen.frame.maxY - 2 && abs(point.x - screen.frame.midX) < 180
+    }
     func mouseMoved() {
-        guard let model, let line, sessionActive else { return }
+        guard let model, let line, sessionActive else { cancelEdgeReveal(); return }
         let point = NSEvent.mouseLocation
-        if model.preferences.edgeReveal && !line.isVisible,
-           let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }),
-           point.y >= screen.frame.maxY - 2, abs(point.x - screen.frame.midX) < 180,
-           Date().timeIntervalSince(lastEdge) > 1.5 {
-            lastEdge = Date(); showLine()
-        } else if line.isVisible && !model.preferences.pinned {
+        if model.preferences.lineEnabled && model.preferences.edgeReveal && !line.isVisible,
+           isAtRevealEdge(point), Date().timeIntervalSince(lastEdge) > 1.5 {
+            if edgeWork == nil {
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    edgeWork = nil
+                    guard sessionActive, model.preferences.lineEnabled, model.preferences.edgeReveal,
+                          !line.isVisible, isAtRevealEdge(NSEvent.mouseLocation) else { return }
+                    lastEdge = Date(); showLine()
+                }
+                edgeWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+            }
+        } else { cancelEdgeReveal() }
+        if line.isVisible && !model.preferences.pinned {
             if line.frame.insetBy(dx: -10, dy: -15).contains(point) { hideWork?.cancel(); hideWork = nil }
             else if hideWork == nil {
-                let work = DispatchWorkItem { [weak self] in self?.hideLine(); self?.hideWork = nil }
+                let work = DispatchWorkItem { [weak self] in self?.hideLine() }
                 hideWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
             }
         }
@@ -145,13 +179,19 @@ final class FloatingPanel: NSPanel {
     @objc func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu = NSMenu()
-            for (key, action) in [("add", #selector(quickAdd)), ("show", #selector(toggleLine)), ("review", #selector(openReview)), ("settings", #selector(openSettings)), ("checkUpdates", #selector(checkForUpdates))] {
+            if model.preferences.lineEnabled {
+                menu.addItem(withTitle: model.l(line.isVisible ? "hide" : "show"), action: #selector(toggleLine), keyEquivalent: "").target = self
+            }
+            menu.addItem(withTitle: model.l(model.preferences.lineEnabled ? "disableLine" : "lineEnabled"), action: #selector(toggleLineEnabled), keyEquivalent: "").target = self
+            menu.addItem(withTitle: model.l("tidy"), action: #selector(tidyLine), keyEquivalent: "").target = self
+            menu.addItem(.separator())
+            for (key, action) in [("add", #selector(quickAdd)), ("review", #selector(openReview)), ("settings", #selector(openSettings)), ("checkUpdates", #selector(checkForUpdates))] {
                 menu.addItem(withTitle: model.l(key), action: action, keyEquivalent: "").target = self
             }
             if model.reminderPending { menu.addItem(withTitle: model.l("dismiss"), action: #selector(dismissReminder), keyEquivalent: "").target = self }
             menu.addItem(.separator()); menu.addItem(withTitle: model.l("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             status.menu = menu; status.button?.performClick(nil); status.menu = nil
-        } else if model.reminderPending { quickAdd() }
+        } else if model.reminderPending || !model.preferences.lineEnabled { quickAdd() }
         else { toggleLine() }
     }
     @objc func quickAdd() { openDay(Day(Date())) }
@@ -227,8 +267,11 @@ final class FloatingPanel: NSPanel {
     }
     @objc func resume() { sessionActive = true; model.reminder.resumed(at: Date()); tick() }
     @objc func suspend() { sessionActive = false; model.flushDrafts(); hideLine() }
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showLine(); return true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if model.preferences.lineEnabled { showLine() } else { quickAdd() }; return true
+    }
     func applicationWillTerminate(_ notification: Notification) {
+        cancelEdgeReveal(); hideWork?.cancel()
         model?.flushDrafts(); timer?.invalidate()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }; if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         hotKeys.forEach { UnregisterEventHotKey($0) }

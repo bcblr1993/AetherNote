@@ -244,6 +244,19 @@ struct SettingsView: View {
             }.padding(24)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    section("clothesline", symbol: "rectangle.topthird.inset.filled") {
+                        settingToggle("lineEnabled", value: $model.preferences.lineEnabled)
+                        Text(model.l("lineControlHint")).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).lineSpacing(3)
+                        Divider().opacity(0.5)
+                        settingToggle("edge", value: $model.preferences.edgeReveal).disabled(!model.preferences.lineEnabled)
+                        Text(model.l("edgeHint")).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).lineSpacing(3)
+                        HStack {
+                            Text(model.weekLabel).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                            Spacer()
+                            Button { model.tidy() } label: { Label(model.l("tidy"), systemImage: "sparkles") }
+                                .buttonStyle(GlassButton()).help(model.l("tidyHint")).accessibilityIdentifier("tidy-line-settings")
+                        }
+                    }
                     section("appearance", symbol: "paintpalette") {
                         HStack {
                             Text(model.l("language"))
@@ -267,7 +280,6 @@ struct SettingsView: View {
                         Divider().opacity(0.5)
                         settingToggle("weekend", value: $model.preferences.showWeekends)
                         settingToggle("motion", value: $model.preferences.motion)
-                        settingToggle("edge", value: $model.preferences.edgeReveal)
                     }
                     section("reminders", symbol: "bell.badge") {
                         settingToggle("hourly", value: $model.preferences.reminders)
