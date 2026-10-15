@@ -5,6 +5,25 @@ import AetherNoteCore
 
 final class LineTextView: NSTextView {
     var submit: (() -> Void)?
+    private var focusObserver: NSObjectProtocol?
+    private var needsInitialFocus = true
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let focusObserver { NotificationCenter.default.removeObserver(focusObserver); self.focusObserver = nil }
+        guard let window, needsInitialFocus else { return }
+        focusObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+            self?.focusInitially()
+        }
+        DispatchQueue.main.async { [weak self] in self?.focusInitially() }
+    }
+    private func focusInitially() {
+        guard needsInitialFocus, let window, window.isKeyWindow else { return }
+        if window.makeFirstResponder(self) {
+            needsInitialFocus = false
+            if let focusObserver { NotificationCenter.default.removeObserver(focusObserver); self.focusObserver = nil }
+        }
+    }
+    deinit { if let focusObserver { NotificationCenter.default.removeObserver(focusObserver) } }
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76 {
             if !event.modifierFlags.contains(.shift) && !hasMarkedText() { submit?(); return }
@@ -28,7 +47,6 @@ struct LineInput: NSViewRepresentable {
         view.delegate = context.coordinator; view.submit = submit
         view.setAccessibilityLabel(label); view.setAccessibilityIdentifier("entry-input")
         scroll.documentView = view
-        DispatchQueue.main.async { if view.window?.isKeyWindow == true { view.window?.makeFirstResponder(view) } }
         return scroll
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -53,6 +71,7 @@ struct DayEditor: View {
     @State private var editing: Entry?
     @State private var editText = ""
     @State private var deleting: Entry?
+    @FocusState private var editFocused: Bool
     private var records: [Entry] { model.journal.records(on: day) }
     private var draft: Binding<String> { Binding(get: { model.drafts[day.rawValue] ?? "" }, set: { model.setDraft($0, day: day) }) }
     var body: some View {
@@ -63,31 +82,34 @@ struct DayEditor: View {
                 StatusPill(text: model.l(day == model.today ? "today" : day < model.today ? "editable" : "future"), accent: day == model.today)
                 DayColorButton(day: day)
                 IconButton(symbol: "doc.on.doc", title: model.l("copy")) { model.copy(records.map(\.text).joined(separator: "\n")) }.disabled(records.isEmpty)
-            }.padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 20)
-            HStack {
-                Text(model.l(day > model.today ? "futureHint" : "welcome")).font(.system(size: 12)).foregroundStyle(.secondary)
-                Spacer()
-                Text(model.entryCount(records.count)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
-            }.padding(.horizontal, 26).padding(.bottom, 12)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        if records.isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: "text.badge.plus").font(.system(size: 30, weight: .light)).foregroundStyle(Color.accentColor.opacity(0.7))
-                                Text(model.l(day == model.today ? "empty" : "noEntries")).font(.system(size: 14, weight: .medium))
-                            }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 52)
-                        }
-                        ForEach(records) { entry in entryRow(entry) }
-                        Color.clear.frame(height: 1).id("bottom")
-                    }.padding(.horizontal, 24).padding(.vertical, 4)
-                }.onChange(of: records.count) { _, _ in
-                    withAnimation(model.reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }.padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 16)
+            VStack(spacing: 0) {
+                HStack {
+                    Text(model.l(day > model.today ? "futureHint" : "savedLocally")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(model.entryCount(records.count)).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                }.padding(.horizontal, 22).padding(.top, 14).padding(.bottom, 12)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            if records.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "text.badge.plus").font(.system(size: 30, weight: .light)).foregroundStyle(Color.accentColor.opacity(0.7))
+                                    Text(model.l(day == model.today ? "empty" : "noEntries")).font(.system(size: 14, weight: .medium))
+                                }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 20)
+                            }
+                            ForEach(records) { entry in entryRow(entry).transition(.opacity) }
+                            .animation(model.reduceMotion ? nil : .easeOut(duration: 0.18), value: records.count)
+                            Color.clear.frame(height: 1).id("bottom")
+                        }.padding(.horizontal, 20).padding(.vertical, 4)
+                    }.onChange(of: records.count) { _, _ in
+                        withAnimation(model.reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                    }
                 }
-            }
-            composer.padding(20)
-        }.padding(.top, 28).noteSurface(tint: model.dayColor(day).tint).ignoresSafeArea().frame(minWidth: 520, minHeight: 540).errors(model)
-        .onChange(of: editing?.id) { _, _ in updateEditingState() }
+                if editing == nil { composer.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 18) }
+            }.background(Color(nsColor: .windowBackgroundColor).opacity(0.94), in: RoundedRectangle(cornerRadius: 20))
+        }.padding(.top, 28).noteSurface().ignoresSafeArea().frame(minWidth: 500, minHeight: 440).errors(model)
+        .onChange(of: editing?.id) { _, _ in updateEditingState(); editFocused = editing != nil }
         .onChange(of: editText) { _, _ in updateEditingState() }
         .onDisappear { model.hasUnsavedEdit = false }
         .alert(model.l("deleteConfirm"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
@@ -106,7 +128,7 @@ struct DayEditor: View {
                 }
                 ZStack(alignment: .topLeading) {
                     if draft.wrappedValue.isEmpty { Text(model.l("placeholder")).font(.system(size: 15)).foregroundStyle(.secondary).padding(.horizontal, 17).padding(.vertical, 12).allowsHitTesting(false) }
-                    LineInput(text: draft, label: model.l("add")) { _ = model.append(draft.wrappedValue, day: day) }.frame(height: 82)
+                    LineInput(text: draft, label: model.l("add")) { _ = model.append(draft.wrappedValue, day: day) }.frame(height: 64)
                 }.background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
                 HStack {
                     Text(model.l("inputHint")).font(.system(size: 10)).foregroundStyle(.secondary)
@@ -123,7 +145,7 @@ struct DayEditor: View {
                 }
             }
             if let toast = model.toast { Text(toast).font(.caption).foregroundStyle(Color.accentColor) }
-        }.padding(16).insetSurface(selected: model.canEdit(day))
+        }.padding(14).background(Color(nsColor: .textBackgroundColor).opacity(0.85), in: RoundedRectangle(cornerRadius: 16)).insetSurface(selected: model.canEdit(day), tint: model.dayColor(day).tint)
     }
     private func entryRow(_ entry: Entry) -> some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -141,7 +163,7 @@ struct DayEditor: View {
                 }
             }.font(.system(size: 11, weight: .medium))
             if editing?.id == entry.id {
-                TextEditor(text: $editText).font(.system(size: 15)).scrollContentBackground(.hidden)
+                TextEditor(text: $editText).focused($editFocused).font(.system(size: 15)).scrollContentBackground(.hidden)
                     .padding(8).frame(minHeight: 86).background(.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityLabel(model.l("edit"))
                 HStack {
@@ -153,7 +175,7 @@ struct DayEditor: View {
             } else {
                 Text(entry.text).font(.system(size: 15)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.padding(16).insetSurface(selected: editing?.id == entry.id)
+        }.padding(14).background(Color(nsColor: .textBackgroundColor).opacity(0.75), in: RoundedRectangle(cornerRadius: 16)).insetSurface(selected: editing?.id == entry.id, tint: model.dayColor(day).tint)
     }
 }
 

@@ -12,6 +12,8 @@ final class FloatingPanel: NSPanel {
     var model: AppModel!
     var status: NSStatusItem!
     var line: FloatingPanel!
+    var focus = ClotheslineFocus()
+    var replacingEditor = false
     var editor: NSWindow?
     var review: NSWindow?
     var settings: NSWindow?
@@ -66,7 +68,7 @@ final class FloatingPanel: NSPanel {
             if !model.preferences.reminders { model.reminderPending = false }
             cancelEdgeReveal()
             if model.preferences.pinned { hideWork?.cancel(); hideWork = nil }
-            if !model.preferences.lineEnabled { hideLine() }
+            if !model.preferences.lineEnabled { focus.disableLine(); hideLine() }
             else if !lineWasEnabled { showLine() }
             lineWasEnabled = model.preferences.lineEnabled
             updateStatus()
@@ -121,7 +123,7 @@ final class FloatingPanel: NSPanel {
         line.contentView = NSHostingView(rootView: LineView(openDay: { [weak self] in self?.openDay($0) }, review: { [weak self] in self?.openReview() }, settings: { [weak self] in self?.openSettings() }, hide: { [weak self] in self?.hideLine() }).environmentObject(model))
     }
     func showLine() {
-        guard model.preferences.lineEnabled else { return }
+        guard model.preferences.lineEnabled, !focus.isActive else { return }
         cancelEdgeReveal()
         hideWork?.cancel(); hideWork = nil
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main!
@@ -138,6 +140,10 @@ final class FloatingPanel: NSPanel {
     }
     @objc func toggleLine() {
         guard model.preferences.lineEnabled else { openSettings(); return }
+        if focus.isActive {
+            if let window = [editor, review, settings].compactMap({ $0 }).first(where: { $0.isVisible }) { present(window) }
+            return
+        }
         line.isVisible ? hideLine() : showLine()
     }
     @objc func toggleLineEnabled() { model.preferences.lineEnabled.toggle() }
@@ -147,7 +153,7 @@ final class FloatingPanel: NSPanel {
         return point.y >= screen.frame.maxY - 2 && abs(point.x - screen.frame.midX) < 180
     }
     func mouseMoved() {
-        guard let model, let line, sessionActive else { cancelEdgeReveal(); return }
+        guard let model, let line, sessionActive, !focus.isActive else { cancelEdgeReveal(); return }
         let point = NSEvent.mouseLocation
         if model.preferences.lineEnabled && model.preferences.edgeReveal && !line.isVisible,
            isAtRevealEdge(point), Date().timeIntervalSince(lastEdge) > 1.5 {
@@ -155,7 +161,7 @@ final class FloatingPanel: NSPanel {
                 let work = DispatchWorkItem { [weak self] in
                     guard let self else { return }
                     edgeWork = nil
-                    guard sessionActive, model.preferences.lineEnabled, model.preferences.edgeReveal,
+                    guard sessionActive, !focus.isActive, model.preferences.lineEnabled, model.preferences.edgeReveal,
                           !line.isVisible, isAtRevealEdge(NSEvent.mouseLocation) else { return }
                     lastEdge = Date(); showLine()
                 }
@@ -200,15 +206,22 @@ final class FloatingPanel: NSPanel {
         model.now = Date(); model.dismissReminder()
         model.flushDrafts()
         guard canLeaveEditor() else { return }
+        beginFocus(.editor)
+        replacingEditor = true
         editor?.close()
-        editor = makeWindow(title: "AetherNote · \(day.rawValue)", size: NSSize(width: 580, height: 660), root: DayEditor(day: day).environmentObject(model))
+        replacingEditor = false
+        let height = CGFloat(min(580, 440 + model.journal.records(on: day).count * 44))
+        editor = makeWindow(title: "AetherNote · \(day.rawValue)", size: NSSize(width: 500, height: height), root: DayEditor(day: day).environmentObject(model))
+        editor?.minSize = NSSize(width: 500, height: 440)
         present(editor!)
     }
     @objc func openReview() {
+        beginFocus(.review)
         if review == nil { review = makeWindow(title: model.l("review"), size: NSSize(width: 740, height: 700), root: ReviewView().environmentObject(model)) }
         present(review!)
     }
     @objc func openSettings() {
+        beginFocus(.settings)
         if settings == nil { settings = makeWindow(title: model.l("settings"), size: NSSize(width: 600, height: 760), root: SettingsView(updates: updates, previewReminder: { [weak self] in
             guard let self else { return }; model.reminderPending = true; updateStatus(); model.showToast(model.l("reminderPrompt"))
         }).environmentObject(model)) }
@@ -247,7 +260,20 @@ final class FloatingPanel: NSPanel {
         window.minSize = NSSize(width: size.width, height: min(size.height, 590)); window.center()
         return window
     }
-    func present(_ window: NSWindow) { NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil) }
+    func beginFocus(_ window: ClotheslineFocus.Window) {
+        focus.begin(window, lineVisible: line.isVisible)
+        hideLine()
+    }
+    func present(_ window: NSWindow) {
+        let animate = !window.isVisible && !model.reduceMotion
+        window.alphaValue = animate ? 0 : 1
+        NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+        if animate {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18; window.animator().alphaValue = 1
+            }
+        }
+    }
     func canLeaveEditor() -> Bool {
         guard !model.hasUnsavedEdit else {
             let alert = NSAlert(); alert.messageText = model.l("unsavedEdit")
@@ -260,7 +286,25 @@ final class FloatingPanel: NSPanel {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender === editor ? canLeaveEditor() : true
     }
-    func windowWillClose(_ notification: Notification) { model.flushDrafts() }
+    func windowWillClose(_ notification: Notification) {
+        model.flushDrafts()
+        guard let window = notification.object as? NSWindow else { return }
+        let kind: ClotheslineFocus.Window
+        if window === editor {
+            guard !replacingEditor else { return }
+            kind = .editor
+        } else if window === review { kind = .review }
+        else if window === settings { kind = .settings }
+        else { return }
+        let restore = focus.end(kind, lineEnabled: model.preferences.lineEnabled,
+                                appActive: NSApp.isActive, sessionActive: sessionActive)
+        if restore {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, NSApp.isActive, sessionActive, !updateRestartRequested else { return }
+                showLine()
+            }
+        }
+    }
     func tick() {
         let typing = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown) < 60
         model.tick(sessionActive: sessionActive, editing: editor?.isKeyWindow == true, recentlyTyping: typing)
