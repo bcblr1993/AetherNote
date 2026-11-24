@@ -142,3 +142,38 @@ private var utc: Calendar { var c = Calendar.journal; c.timeZone = TimeZone(seco
     #expect(!p.isDue(at: now.addingTimeInterval(3601), sessionActive: true, isEditing: false, recentlyTyping: false))
     #expect(p.isDue(at: now.addingTimeInterval(7190), sessionActive: true, isEditing: false, recentlyTyping: false))
 }
+
+@Test func multilineSingleEntryAndEmptyDayPruning() throws {
+    let now = date("2026-10-12T10:00:00Z"), day = Day(now, calendar: utc)
+    var j = Journal()
+    try j.append("  first line\nsecond line  \n", on: day, now: now, splitLines: false, calendar: utc)
+    let items = j.records(on: day)
+    #expect(items.count == 1)
+    #expect(items[0].text == "first line\nsecond line")
+    try j.validate(calendar: utc)
+    #expect(j.markdown(week: day, calendar: utc).contains("- first line\n  second line"))
+    #expect(throws: JournalError.empty) { try j.append(" \n\t ", on: day, now: now, splitLines: false, calendar: utc) }
+    #expect(throws: JournalError.tooLong) { try j.append(String(repeating: "a", count: 4_001), on: day, now: now, splitLines: false, calendar: utc) }
+    try j.remove(items[0].id, on: day, now: now, calendar: utc)
+    #expect(j.entries[day.rawValue] == nil)
+    #expect(j.entries.isEmpty)
+}
+
+@Test func searchMatchesEntriesAndDatesNewestFirst() throws {
+    let d1 = date("2026-10-10T10:00:00Z"), d2 = date("2026-10-12T10:00:00Z"), d3 = date("2026-10-14T10:00:00Z")
+    var j = Journal()
+    try j.append("Morning walk", on: Day(d1, calendar: utc), now: d1, calendar: utc)
+    try j.append("Afternoon Café notes\nOther task", on: Day(d2, calendar: utc), now: d2, calendar: utc)
+    try j.append("Buy coffee beans", on: Day(d3, calendar: utc), now: d3, calendar: utc)
+    try j.append("Evening cafe review", on: Day(d3, calendar: utc), now: d3, calendar: utc)
+
+    let textMatches = j.search("cafe")
+    #expect(textMatches.map(\.day.rawValue) == ["2026-10-14", "2026-10-12"])
+    #expect(textMatches[0].entries.map(\.text) == ["Evening cafe review"])
+    #expect(textMatches[1].entries.map(\.text) == ["Afternoon Café notes"])
+
+    let dateMatches = j.search("2026-10-10")
+    #expect(dateMatches.count == 1 && dateMatches[0].entries.map(\.text) == ["Morning walk"])
+    #expect(j.search("   \n  ").isEmpty)
+    #expect(j.search("nonexistent").isEmpty)
+}

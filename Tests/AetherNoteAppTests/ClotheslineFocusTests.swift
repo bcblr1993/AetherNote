@@ -45,3 +45,37 @@ import Testing
     let restored7 = focus.end(.editor, lineEnabled: true, appActive: true, sessionActive: true)
     #expect(!restored7)
 }
+
+@Test func minimizingWindowReleasesFocusWithoutImmediateRestore() {
+    var focus = ClotheslineFocus()
+    focus.begin(.editor, lineVisible: true)
+    focus.minimize(.editor)
+    #expect(!focus.isActive && !focus.restoreVisible)
+    let restoredAfterMinimize = focus.end(.editor, lineEnabled: true, appActive: true, sessionActive: true)
+    #expect(!restoredAfterMinimize)
+
+    focus.begin(.editor, lineVisible: true)
+    focus.begin(.settings, lineVisible: false)
+    focus.minimize(.editor)
+    #expect(focus.isActive && focus.restoreVisible)
+    let restoredAfterOtherCloses = focus.end(.settings, lineEnabled: true, appActive: true, sessionActive: true)
+    #expect(restoredAfterOtherCloses)
+}
+
+@Test func reEnablingLineWhileFocusedRestoresAndReturnToLineClearsState() {
+    var focus = ClotheslineFocus()
+    focus.enableLine()
+    #expect(!focus.restoreVisible)
+
+    focus.begin(.settings, lineVisible: true)
+    focus.disableLine()
+    #expect(!focus.restoreVisible)
+    focus.enableLine()
+    let restoredAfterReEnable = focus.end(.settings, lineEnabled: true, appActive: true, sessionActive: true)
+    #expect(restoredAfterReEnable)
+
+    focus.begin(.editor, lineVisible: true)
+    focus.begin(.review, lineVisible: false)
+    focus.returnToLine()
+    #expect(!focus.isActive && !focus.restoreVisible)
+}
