@@ -39,7 +39,7 @@ struct DayColorPicker: View {
     private var custom: Binding<Color> {
         Binding(get: { preview }, set: { if let rgb = DayColor.rgb(from: $0) { hex = DayColor(rgb: rgb).hex } })
     }
-    private var hasPendingColor: Bool { pendingRGB != selected.rgb }
+    private var hasPendingColor: Bool { pendingRGB != nil && pendingRGB != selected.rgb }
     private var preview: Color { pendingRGB.map { DayColor(rgb: $0).tint } ?? selected.tint }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -95,7 +95,8 @@ struct DayColorPicker: View {
             HStack {
                 Button { model.randomizeColor(day) } label: { Label(model.l("randomColor"), systemImage: "shuffle") }.buttonStyle(GlassButton())
                 Spacer()
-                Text(model.l(hasPendingColor ? "colorPending" : "colorSaved")).font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(pendingRGB == nil ? model.l("colorHexInvalid") : model.l(hasPendingColor ? "colorPending" : "colorSaved"))
+                    .font(.system(size: 10)).foregroundStyle(pendingRGB == nil ? .orange : .secondary)
             }
             Text(model.l("colorHint")).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
         }.padding(20).frame(width: 304)

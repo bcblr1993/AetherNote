@@ -13,7 +13,7 @@ struct LineView: View {
     private var spring: Animation? { model.reduceMotion ? nil : .spring(response: 0.58, dampingFraction: 0.58) }
     var body: some View {
         VStack(spacing: 0) {
-            toolbar.padding(.horizontal, 16).padding(.vertical, 10).noteSurface().padding(.horizontal, 38)
+            toolbar.padding(.horizontal, 16).padding(.vertical, 10).noteSurface().padding(.horizontal, 24)
             GeometryReader { geo in
                 let days = model.visibleDays
                 let gap: CGFloat = 18
@@ -31,8 +31,12 @@ struct LineView: View {
                 .contentShape(Rectangle().path(in: CGRect(x: 0, y: 8, width: geo.size.width, height: 52)))
                 .onTapGesture(count: 2) { withAnimation(spring) { model.tidy() } }
                 .gesture(DragGesture().onChanged { value in
+                    model.isDraggingLine = true
                     if !model.reduceMotion { ropePull = min(45, max(-18, value.translation.height * 0.4)) }
-                }.onEnded { _ in withAnimation(spring) { ropePull = 0 } })
+                }.onEnded { _ in
+                    model.isDraggingLine = false
+                    withAnimation(spring) { ropePull = 0 }
+                })
                 ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                     let isDragging = dragging == day
                     let offset = isDragging ? translation : .zero
@@ -44,8 +48,10 @@ struct LineView: View {
                         .position(x: start + CGFloat(index) * stride + offset.width, y: 119 + bend * 12 + offset.height * 0.45 + ropePull * bend * 0.4)
                         .zIndex(isDragging ? 10 : 1)
                         .gesture(DragGesture(minimumDistance: 7).onChanged { value in
+                            model.isDraggingLine = true
                             dragging = day; translation = CGSize(width: value.translation.width, height: min(110, max(-30, value.translation.height)))
                         }.onEnded { value in
+                            model.isDraggingLine = false
                             let destination = min(days.count - 1, max(0, index + Int((value.translation.width / stride).rounded())))
                             withAnimation(spring) {
                                 model.reorder(day, to: days[destination]); dragging = nil; translation = .zero
@@ -66,12 +72,16 @@ struct LineView: View {
                                 Button(model.l("randomColor")) { model.randomizeColor(day) }
                             }
                             Button(model.l("copy")) { model.copy(model.journal.records(on: day).map(\.text).joined(separator: "\n")) }
+                                .disabled(model.journal.records(on: day).isEmpty)
                         }
                 }
             }.frame(height: 264)
             Text(model.toast ?? model.l("dragHint")).font(.system(size: 10)).foregroundStyle(.secondary)
                 .padding(.horizontal, 12).padding(.vertical, 5).background(.regularMaterial, in: Capsule())
-        }.padding(.top, 8).padding(.bottom, 12).errors(model)
+        }.padding(.top, 8).padding(.bottom, 12).onDisappear {
+            model.isDraggingLine = false
+            dragging = nil; translation = .zero; ropePull = 0
+        }
     }
     private var toolbar: some View {
         HStack(spacing: 7) {
@@ -79,11 +89,11 @@ struct LineView: View {
             Text("AetherNote").font(.system(size: 13, weight: .semibold, design: .rounded))
             Divider().frame(height: 15)
             IconButton(symbol: "chevron.left", title: model.l("previous")) { model.navigateWeek(-1) }
-            Button(model.weekLabel) { model.returnToCurrentWeek() }.buttonStyle(GlassButton()).font(.system(size: 12, design: .monospaced)).help(model.l("thisWeek"))
+            Button(model.weekLabel) { model.returnToCurrentWeek() }.buttonStyle(GlassButton()).font(.system(size: 12, design: .monospaced)).fixedSize().help(model.l("thisWeek"))
             IconButton(symbol: "chevron.right", title: model.l("next")) { model.navigateWeek(1) }
             CurrentWeekButton()
             Spacer(minLength: 4)
-            Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus") }.buttonStyle(AccentButton())
+            Button { openDay(model.today) } label: { Label(model.l("add"), systemImage: "plus").fixedSize() }.buttonStyle(AccentButton())
             Button { withAnimation(spring) { model.tidy() } } label: {
                 Label(model.l("tidy"), systemImage: "sparkles").fixedSize()
             }.buttonStyle(GlassButton()).help(model.l("tidyHint")).accessibilityIdentifier("tidy-line")

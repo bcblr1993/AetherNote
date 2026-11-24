@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import AetherNoteCore
 
 enum MaterialStyle: String, Codable, CaseIterable, Identifiable {
@@ -38,23 +39,41 @@ struct Preferences: Codable {
     let clock: () -> Date
     @Published private(set) var journal: Journal
     @Published var preferences: Preferences { didSet { savePreferences(); onPreferencesChanged?() } }
-    @Published var now: Date
+    private(set) var now: Date
+    @Published private(set) var today: Day
     @Published var week: Day
-    @Published var errorMessage: String?
+    @Published var activeDay: Day
+    @Published var editorSession = 0
+    @Published var errorMessage: String? {
+        didSet {
+            guard let message = errorMessage, let onError else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.errorMessage == message else { return }
+                onError(message)
+            }
+        }
+    }
     @Published var toast: String?
     @Published var reminderPending = false
     @Published var drafts: [String: String] = [:]
     var hasUnsavedEdit = false
+    var isDraggingLine = false
     var reminder: ReminderPolicy
     var onPreferencesChanged: (() -> Void)?
     var onReminderChanged: (() -> Void)?
     var onOpenDay: ((Day) -> Void)?
+    var onReturnToWeek: ((Day) -> Void)?
+    var onOpenReview: ((Day?) -> Void)?
+    var onError: ((String) -> Void)?
     private var draftSave: DispatchWorkItem?
     private var toastTask: Task<Void, Never>?
+    private var weekdayFormatters: [Language: DateFormatter] = [:]
+    private var timeFormatters: [Language: DateFormatter] = [:]
 
     init(directory: URL, clock: @escaping () -> Date = Date.init) throws {
         disk = JournalDisk(directory: directory); self.clock = clock
-        let initial = clock(); now = initial; week = Day(initial).week().first!
+        let initial = clock(); let initialDay = Day(initial)
+        now = initial; today = initialDay; week = initialDay.week().first!; activeDay = initialDay
         reminder = ReminderPolicy(startedAt: initial)
         journal = try disk.load()
         let prefsURL = directory.appendingPathComponent("preferences.json")
@@ -62,26 +81,55 @@ struct Preferences: Codable {
         drafts = (try? JSONDecoder().decode([String: String].self, from: Data(contentsOf: directory.appendingPathComponent("drafts.json")))) ?? [:]
         if journal.observe(initial) { try disk.save(journal) }
     }
-    var today: Day { Day(now) }
     var l: (String) -> String { { Copy.text($0, self.preferences.language) } }
     var reduceMotion: Bool { !preferences.motion || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     var allWeekDays: [Day] { week.week() }
     var visibleDays: [Day] { journal.arranged(allWeekDays.filter { preferences.showWeekends || (allWeekDays.firstIndex(of: $0) ?? 0) < 5 || !journal.records(on: $0).isEmpty || $0 == today }, week: week) }
     func weekday(_ day: Day) -> String {
         guard let date = day.date() else { return day.rawValue }
-        let f = DateFormatter(); f.locale = preferences.language.locale; f.dateFormat = "EEE"; return f.string(from: date)
+        let resolved = preferences.language.resolved
+        let formatter = weekdayFormatters[resolved] ?? {
+            let f = DateFormatter(); f.locale = resolved.locale; f.dateFormat = "EEE"
+            weekdayFormatters[resolved] = f; return f
+        }()
+        return formatter.string(from: date)
+    }
+    func entryTime(_ date: Date) -> String {
+        let resolved = preferences.language.resolved
+        let formatter = timeFormatters[resolved] ?? {
+            let f = DateFormatter(); f.locale = resolved.locale; f.timeStyle = .short; f.dateStyle = .none
+            timeFormatters[resolved] = f; return f
+        }()
+        return formatter.string(from: date)
     }
     func entryCount(_ count: Int) -> String { "\(count) \(l(count == 1 ? "entry" : "entries"))" }
     func shortDate(_ day: Day) -> String { String(day.rawValue.suffix(5)).replacingOccurrences(of: "-", with: "/") }
-    var weekLabel: String { "\(shortDate(allWeekDays[0])) — \(shortDate(allWeekDays[6]))" }
+    func weekLabel(for weekStart: Day, today: Day) -> String {
+        let days = weekStart.week()
+        guard let start = days.first, let end = days.last else { return shortDate(weekStart) }
+        let currentYear = today.rawValue.prefix(4), startYear = start.rawValue.prefix(4), endYear = end.rawValue.prefix(4)
+        if startYear != endYear { return "\(startYear)/\(shortDate(start)) — \(endYear)/\(shortDate(end))" }
+        if startYear != currentYear { return "\(startYear)/\(shortDate(start)) — \(shortDate(end))" }
+        return "\(shortDate(start)) — \(shortDate(end))"
+    }
+    var weekLabel: String { weekLabel(for: week, today: today) }
     func canEdit(_ day: Day) -> Bool { journal.canEdit(day, now: clock()) }
-    func tick(sessionActive: Bool, editing: Bool, recentlyTyping: Bool) {
-        let current = clock(), oldToday = today
+    func refreshClock(_ date: Date? = nil) {
+        let current = date ?? clock()
+        let currentDay = Day(current)
+        let oldToday = today
         now = current
+        if currentDay != oldToday {
+            today = currentDay
+            if week == oldToday.week().first { week = currentDay.week().first! }
+        }
+    }
+    func tick(sessionActive: Bool, editing: Bool, recentlyTyping: Bool) {
+        let current = clock()
+        refreshClock(current)
         if journal.latestObservedDay == nil || today > journal.latestObservedDay! {
             transact { $0.observe(current) }
         }
-        if today != oldToday, week == oldToday.week().first { week = today.week().first! }
         reminder.enabled = preferences.reminders
         if reminder.isDue(at: current, sessionActive: sessionActive, isEditing: editing, recentlyTyping: recentlyTyping) {
             reminder.reminded(at: current); reminderPending = true; onReminderChanged?()
@@ -95,10 +143,10 @@ struct Preferences: Codable {
         } catch { errorMessage = l("saveError") + "\n" + error.localizedDescription }
         return false
     }
-    @discardableResult func append(_ text: String, day: Day) -> Bool {
+    @discardableResult func append(_ text: String, day: Day, splitLines: Bool = false) -> Bool {
         let date = clock()
-        guard transact({ try $0.append(text, on: day, now: date) }) else { return false }
-        now = date; drafts[day.rawValue] = nil; flushDrafts(); didRecord(); return true
+        guard transact({ try $0.append(text, on: day, now: date, splitLines: splitLines) }) else { return false }
+        refreshClock(date); drafts[day.rawValue] = nil; flushDrafts(); didRecord(); return true
     }
     @discardableResult func edit(_ entry: Entry, text: String, day: Day) -> Bool {
         guard transact({ try $0.edit(entry.id, text: text, on: day, now: clock()) }) else { return false }
@@ -138,27 +186,69 @@ struct Preferences: Codable {
     }
     func tidy() { if transact({ $0.tidy(week: week) }) { showToast(l("tidied")) } }
     func returnToCurrentWeek() {
-        now = clock()
+        refreshClock()
         week = today.week().first!
     }
+    func jumpTo(date: Date) { week = Day(date).week().first! }
     func navigateWeek(_ offset: Int) { week = week.adding(days: 7 * offset) }
     func copy(_ text: String) { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string); showToast(l("copied")) }
     func showToast(_ text: String) { toastTask?.cancel(); toast = text; toastTask = Task { try? await Task.sleep(for: .seconds(2)); if !Task.isCancelled { toast = nil } } }
     func exportWeek() {
-        let panel = NSSavePanel(); panel.nameFieldStringValue = "AetherNote-\(week.rawValue).md"
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.nameFieldStringValue = "AetherNote-\(week.rawValue).md"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { try journal.markdown(week: week).write(to: url, atomically: true, encoding: .utf8) } catch { errorMessage = error.localizedDescription }
     }
     func exportBackup() {
-        let panel = NSSavePanel(); panel.nameFieldStringValue = "AetherNote-backup-\(today.rawValue).json"
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "AetherNote-backup-\(today.rawValue).json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; try encoder.encode(journal).write(to: url, options: .atomic) } catch { errorMessage = error.localizedDescription }
     }
+    @discardableResult func restoreJournal(_ imported: Journal) -> Bool {
+        guard transact({ $0 = imported }) else { return false }
+        showToast(l("restored"))
+        return true
+    }
+    func importBackup() {
+        guard !hasUnsavedEdit else { errorMessage = l("unsavedEdit"); return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let imported: Journal
+        do {
+            let data = try Data(contentsOf: url)
+            imported = try JSONDecoder().decode(Journal.self, from: data)
+            try imported.validate()
+        } catch {
+            errorMessage = l("restoreInvalid") + "\n" + error.localizedDescription
+            return
+        }
+        let nonEmptyDays = imported.entries.values.filter { !$0.isEmpty }.count
+        let totalEntries = imported.entries.values.reduce(0) { $0 + $1.count }
+        let alert = NSAlert()
+        alert.messageText = l("restore")
+        alert.informativeText = "\(l("restoreWarning"))\n\n\(nonEmptyDays) · \(entryCount(totalEntries))"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: l("restoreConfirm"))
+        alert.addButton(withTitle: l("cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        _ = restoreJournal(imported)
+    }
     func bringDraftToToday(from day: Day) {
         guard let draft = drafts[day.rawValue], !draft.isEmpty else { return }
-        let current = Day(clock()); now = clock()
-        let existing = drafts[current.rawValue] ?? ""
-        setDraft(existing.isEmpty ? draft : existing + "\n" + draft, day: current)
+        refreshClock()
+        let current = today
+        if day != current {
+            let existing = drafts[current.rawValue] ?? ""
+            setDraft(existing.isEmpty ? draft : existing + "\n" + draft, day: current)
+            drafts[day.rawValue] = nil
+            flushDrafts()
+        }
         onOpenDay?(current)
     }
 }

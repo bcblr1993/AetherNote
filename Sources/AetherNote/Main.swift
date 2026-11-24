@@ -14,6 +14,8 @@ final class FloatingPanel: NSPanel {
     var line: FloatingPanel!
     var focus = ClotheslineFocus()
     var replacingEditor = false
+    var returningToLine = false
+    var menuTracking = false
     var editor: NSWindow?
     var review: NSWindow?
     var settings: NSWindow?
@@ -62,18 +64,29 @@ final class FloatingPanel: NSPanel {
             alert.addButton(withTitle: "OK"); alert.runModal(); NSApp.terminate(nil); return
         }
         model.onOpenDay = { [weak self] day in self?.openDay(day) }
+        model.onReturnToWeek = { [weak self] day in self?.returnToWeek(from: day) }
+        model.onOpenReview = { [weak self] day in self?.openReview(day: day) }
+        model.onError = { [weak self] message in self?.presentError(message) }
         var lineWasEnabled = model.preferences.lineEnabled
+        var lastLanguage = model.preferences.language
         model.onPreferencesChanged = { [weak self] in
             guard let self else { return }
             if !model.preferences.reminders { model.reminderPending = false }
             cancelEdgeReveal()
             if model.preferences.pinned { hideWork?.cancel(); hideWork = nil }
             if !model.preferences.lineEnabled { focus.disableLine(); hideLine() }
-            else if !lineWasEnabled { showLine() }
+            else if !lineWasEnabled {
+                if focus.isActive { focus.enableLine() } else { showLine() }
+            }
+            let needsMenuRebuild = lineWasEnabled != model.preferences.lineEnabled || lastLanguage != model.preferences.language
             lineWasEnabled = model.preferences.lineEnabled
+            lastLanguage = model.preferences.language
             updateStatus()
-            createApplicationMenu()
-            review?.title = model.l("review"); settings?.title = model.l("settings")
+            if needsMenuRebuild {
+                createApplicationMenu()
+                review?.title = model.l("review"); settings?.title = model.l("settings")
+                if let editor { editor.title = "AetherNote · \(model.activeDay.rawValue)" }
+            }
         }
         model.onReminderChanged = { [weak self] in self?.updateStatus() }
         updates = AppUpdates()
@@ -85,6 +98,9 @@ final class FloatingPanel: NSPanel {
         createLine(); registerShortcuts(); createApplicationMenu()
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in self?.mouseMoved() }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in self?.mouseMoved(); return event }
+        let appCenter = NotificationCenter.default
+        appCenter.addObserver(self, selector: #selector(menuDidBeginTracking), name: NSMenu.didBeginTrackingNotification, object: nil)
+        appCenter.addObserver(self, selector: #selector(menuDidEndTracking), name: NSMenu.didEndTrackingNotification, object: nil)
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(self, selector: #selector(resume), name: NSWorkspace.didWakeNotification, object: nil)
         center.addObserver(self, selector: #selector(resume), name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
@@ -100,8 +116,13 @@ final class FloatingPanel: NSPanel {
     }
     func createApplicationMenu() {
         let menu = NSMenu(), application = NSMenuItem(), submenu = NSMenu()
-        submenu.addItem(withTitle: model.l(model.preferences.lineEnabled ? "disableLine" : "lineEnabled"), action: #selector(toggleLineEnabled), keyEquivalent: "").target = self
+        if model.preferences.lineEnabled {
+            submenu.addItem(withTitle: model.l(line?.isVisible == true ? "hide" : "show"), action: #selector(toggleLine), keyEquivalent: "").target = self
+        }
+        submenu.addItem(withTitle: model.l("add"), action: #selector(quickAdd), keyEquivalent: "").target = self
+        submenu.addItem(withTitle: model.l("review"), action: #selector(openReview), keyEquivalent: "").target = self
         submenu.addItem(withTitle: model.l("tidy"), action: #selector(tidyLine), keyEquivalent: "").target = self
+        submenu.addItem(withTitle: model.l(model.preferences.lineEnabled ? "disableLine" : "lineEnabled"), action: #selector(toggleLineEnabled), keyEquivalent: "").target = self
         submenu.addItem(.separator())
         submenu.addItem(withTitle: model.l("settings"), action: #selector(openSettings), keyEquivalent: ",").target = self
         submenu.addItem(withTitle: model.l("checkUpdates"), action: #selector(checkForUpdates), keyEquivalent: "").target = self
@@ -126,12 +147,42 @@ final class FloatingPanel: NSPanel {
         guard model.preferences.lineEnabled, !focus.isActive else { return }
         cancelEdgeReveal()
         hideWork?.cancel(); hideWork = nil
-        let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main!
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let width = min(1200, screen.visibleFrame.width - 32)
         line.setFrame(NSRect(x: screen.visibleFrame.midX - width / 2, y: screen.visibleFrame.maxY - 365, width: width, height: 365), display: true)
         line.alphaValue = model.reduceMotion ? 1 : 0
         line.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in context.duration = model.reduceMotion ? 0 : 0.25; line.animator().alphaValue = 1 }
+    }
+    func showLineExplicitly(syncWeekTo day: Day? = nil) {
+        guard model.preferences.lineEnabled else {
+            if let day { model.week = day.week().first! }
+            openSettings()
+            return
+        }
+        if editor?.isVisible == true || editor?.isMiniaturized == true {
+            guard canLeaveEditor() else { return }
+        }
+        if let day { model.week = day.week().first! }
+        returningToLine = true
+        for window in [editor, review, settings].compactMap({ $0 }) where window.isVisible || window.isMiniaturized {
+            window.close()
+        }
+        focus.returnToLine()
+        returningToLine = false
+        showLine()
+    }
+    func returnToWeek(from day: Day) {
+        if model.preferences.lineEnabled {
+            showLineExplicitly(syncWeekTo: day)
+        } else {
+            guard canLeaveEditor() else { return }
+            model.week = day.week().first!
+            openReview(day: day)
+            if let editor, editor.isVisible || editor.isMiniaturized {
+                editor.close()
+            }
+        }
     }
     func cancelEdgeReveal() { edgeWork?.cancel(); edgeWork = nil }
     func hideLine() {
@@ -140,14 +191,18 @@ final class FloatingPanel: NSPanel {
     }
     @objc func toggleLine() {
         guard model.preferences.lineEnabled else { openSettings(); return }
-        if focus.isActive {
-            if let window = [editor, review, settings].compactMap({ $0 }).first(where: { $0.isVisible }) { present(window) }
-            return
+        if line.isVisible {
+            hideLine()
+        } else if focus.isActive {
+            showLineExplicitly()
+        } else {
+            showLine()
         }
-        line.isVisible ? hideLine() : showLine()
     }
     @objc func toggleLineEnabled() { model.preferences.lineEnabled.toggle() }
     @objc func tidyLine() { model.tidy() }
+    @objc func menuDidBeginTracking() { menuTracking = true; hideWork?.cancel(); hideWork = nil }
+    @objc func menuDidEndTracking() { menuTracking = false }
     private func isAtRevealEdge(_ point: NSPoint) -> Bool {
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) else { return false }
         return point.y >= screen.frame.maxY - 2 && abs(point.x - screen.frame.midX) < 180
@@ -170,8 +225,9 @@ final class FloatingPanel: NSPanel {
             }
         } else { cancelEdgeReveal() }
         if line.isVisible && !model.preferences.pinned {
-            if line.frame.insetBy(dx: -10, dy: -15).contains(point) { hideWork?.cancel(); hideWork = nil }
-            else if hideWork == nil {
+            if menuTracking || model.isDraggingLine || line.frame.insetBy(dx: -10, dy: -15).contains(point) {
+                hideWork?.cancel(); hideWork = nil
+            } else if hideWork == nil {
                 let work = DispatchWorkItem { [weak self] in self?.hideLine() }
                 hideWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
             }
@@ -203,21 +259,51 @@ final class FloatingPanel: NSPanel {
     @objc func quickAdd() { openDay(Day(Date())) }
     @objc func dismissReminder() { model.dismissReminder() }
     func openDay(_ day: Day) {
-        model.now = Date(); model.dismissReminder()
-        model.flushDrafts()
-        guard canLeaveEditor() else { return }
+        let editorOpen = editor?.isVisible == true || editor?.isMiniaturized == true
+        if editorOpen && day != model.activeDay {
+            guard canLeaveEditor() else { return }
+        }
+        model.refreshClock(); model.dismissReminder(); model.flushDrafts()
+        let shouldResetSession = !editorOpen || day != model.activeDay
+        model.activeDay = day
+        if shouldResetSession { model.editorSession += 1 }
         beginFocus(.editor)
-        replacingEditor = true
-        editor?.close()
-        replacingEditor = false
-        let height = CGFloat(min(580, 440 + model.journal.records(on: day).count * 44))
-        editor = makeWindow(title: "AetherNote · \(day.rawValue)", size: NSSize(width: 500, height: height), root: DayEditor(day: day).environmentObject(model))
-        editor?.minSize = NSSize(width: 500, height: 440)
-        present(editor!)
+        let height = CGFloat(min(620, 500 + model.journal.records(on: day).count * 44))
+        if let editor {
+            editor.title = "AetherNote · \(day.rawValue)"
+            if !editor.isVisible && !editor.isMiniaturized {
+                var frame = editor.frame
+                frame.size = NSSize(width: 540, height: height)
+                editor.setFrame(frame, display: true)
+                editor.center()
+            }
+            present(editor)
+        } else {
+            let window = makeWindow(
+                title: "AetherNote · \(day.rawValue)",
+                size: NSSize(width: 540, height: height),
+                root: DayEditorHost(
+                    close: { [weak self] in self?.editor?.performClose(nil) },
+                    returnToWeek: { [weak self] current in self?.returnToWeek(from: current) },
+                    openReview: { [weak self] current in self?.openReview(day: current) }
+                ).environmentObject(model)
+            )
+            window.minSize = NSSize(width: 500, height: 490)
+            editor = window
+            present(window)
+        }
     }
-    @objc func openReview() {
+    @objc func openReview() { openReview(day: nil) }
+    func openReview(day: Day? = nil) {
+        if let day { model.week = day.week().first! }
         beginFocus(.review)
-        if review == nil { review = makeWindow(title: model.l("review"), size: NSSize(width: 740, height: 700), root: ReviewView().environmentObject(model)) }
+        if review == nil {
+            review = makeWindow(
+                title: model.l("review"),
+                size: NSSize(width: 760, height: 720),
+                root: ReviewView(showLine: { [weak self] in self?.showLineExplicitly() }).environmentObject(model)
+            )
+        }
         present(review!)
     }
     @objc func openSettings() {
@@ -229,7 +315,10 @@ final class FloatingPanel: NSPanel {
     }
     @objc func checkForUpdates() { updates.check() }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        menuItem.action == #selector(checkForUpdates) ? updates.canCheck : true
+        if menuItem.action == #selector(toggleLine) {
+            menuItem.title = model.l(line?.isVisible == true ? "hide" : "show")
+        }
+        return menuItem.action == #selector(checkForUpdates) ? updates.canCheck : true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard model != nil else { return .terminateNow }
@@ -265,6 +354,7 @@ final class FloatingPanel: NSPanel {
         hideLine()
     }
     func present(_ window: NSWindow) {
+        if window.isMiniaturized { window.deminiaturize(nil) }
         let animate = !window.isVisible && !model.reduceMotion
         window.alphaValue = animate ? 0 : 1
         NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
@@ -273,6 +363,16 @@ final class FloatingPanel: NSPanel {
                 context.duration = 0.18; window.animator().alphaValue = 1
             }
         }
+    }
+    func presentError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = model.l("error")
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: model.l("ok"))
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+        model.errorMessage = nil
     }
     func canLeaveEditor() -> Bool {
         guard !model.hasUnsavedEdit else {
@@ -286,16 +386,24 @@ final class FloatingPanel: NSPanel {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender === editor ? canLeaveEditor() : true
     }
+    private func focusKind(for window: NSWindow) -> ClotheslineFocus.Window? {
+        if window === editor { return .editor }
+        if window === review { return .review }
+        if window === settings { return .settings }
+        return nil
+    }
+    func windowWillMiniaturize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, let kind = focusKind(for: window) else { return }
+        focus.minimize(kind)
+    }
+    func windowDidDeminiaturize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, let kind = focusKind(for: window) else { return }
+        beginFocus(kind)
+    }
     func windowWillClose(_ notification: Notification) {
         model.flushDrafts()
-        guard let window = notification.object as? NSWindow else { return }
-        let kind: ClotheslineFocus.Window
-        if window === editor {
-            guard !replacingEditor else { return }
-            kind = .editor
-        } else if window === review { kind = .review }
-        else if window === settings { kind = .settings }
-        else { return }
+        guard !returningToLine, let window = notification.object as? NSWindow, let kind = focusKind(for: window) else { return }
+        if kind == .editor && replacingEditor { return }
         let restore = focus.end(kind, lineEnabled: model.preferences.lineEnabled,
                                 appActive: NSApp.isActive, sessionActive: sessionActive)
         if restore {
@@ -312,11 +420,20 @@ final class FloatingPanel: NSPanel {
     @objc func resume() { sessionActive = true; model.reminder.resumed(at: Date()); tick() }
     @objc func suspend() { sessionActive = false; model.flushDrafts(); hideLine() }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if model.preferences.lineEnabled { showLine() } else { quickAdd() }; return true
+        if focus.isActive, let window = [editor, review, settings].compactMap({ $0 }).first(where: { $0.isVisible || $0.isMiniaturized }) {
+            present(window)
+        } else if model.preferences.lineEnabled {
+            showLine()
+        } else {
+            quickAdd()
+        }
+        return true
     }
     func applicationWillTerminate(_ notification: Notification) {
         cancelEdgeReveal(); hideWork?.cancel()
         model?.flushDrafts(); timer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }; if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         hotKeys.forEach { UnregisterEventHotKey($0) }
         if let hotKeyHandler { RemoveEventHandler(hotKeyHandler) }

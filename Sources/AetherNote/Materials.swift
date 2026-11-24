@@ -125,20 +125,23 @@ struct PanelHeading: View {
 struct StatusPill: View {
     let text: String
     var accent = false
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorSchemeContrast) var contrast
     var body: some View {
-        Text(text).font(.system(size: 10, weight: .medium)).foregroundStyle(accent ? Color.accentColor : .secondary)
-            .padding(.horizontal, 9).padding(.vertical, 5).background((accent ? Color.accentColor : .primary).opacity(0.075), in: Capsule())
+        Text(text).font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(accent ? (colorScheme == .dark ? Color.white : Color.accentColor) : (contrast == .increased ? Color.primary : Color.secondary))
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(
+                (accent ? Color.accentColor.opacity(colorScheme == .dark ? 0.58 : 0.14) : Color.primary.opacity(colorScheme == .dark ? 0.10 : 0.065)),
+                in: Capsule()
+            )
+            .overlay(Capsule().strokeBorder(.primary.opacity(contrast == .increased ? 0.45 : 0), lineWidth: 0.7))
     }
 }
 
 extension View {
     func noteSurface(tint: Color? = nil) -> some View { modifier(NoteSurface(tint: tint)) }
     func insetSurface(selected: Bool = false, tint: Color? = nil) -> some View { modifier(InsetSurface(selected: selected, tint: tint)) }
-    func errors(_ model: AppModel) -> some View {
-        alert(model.l("error"), isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-            Button(model.l("ok")) { model.errorMessage = nil }
-        } message: { Text(model.errorMessage ?? "") }
-    }
 }
 struct IconButton: View {
     let symbol: String

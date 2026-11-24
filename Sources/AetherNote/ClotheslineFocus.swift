@@ -11,6 +11,17 @@ struct ClotheslineFocus {
         windows.insert(window)
     }
     mutating func disableLine() { restoreVisible = false }
+    mutating func enableLine() {
+        if isActive { restoreVisible = true }
+    }
+    mutating func minimize(_ window: Window) {
+        windows.remove(window)
+        if windows.isEmpty { restoreVisible = false }
+    }
+    mutating func returnToLine() {
+        windows.removeAll()
+        restoreVisible = false
+    }
     mutating func end(_ window: Window, lineEnabled: Bool, appActive: Bool, sessionActive: Bool) -> Bool {
         guard windows.remove(window) != nil, windows.isEmpty else { return false }
         defer { restoreVisible = false }
