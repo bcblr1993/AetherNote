@@ -106,13 +106,25 @@ public struct Journal: Codable, Equatable, Sendable {
     }
     public func records(on day: Day) -> [Entry] { entries[day.rawValue] ?? [] }
 
-    public mutating func append(_ text: String, on day: Day, now: Date, calendar: Calendar = .journal) throws {
+    public struct SearchMatch: Equatable, Identifiable, Sendable {
+        public let day: Day
+        public let entries: [Entry]
+        public var id: String { day.rawValue }
+    }
+
+    public mutating func append(_ text: String, on day: Day, now: Date, splitLines: Bool = true, calendar: Calendar = .journal) throws {
         guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
-        let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        guard !lines.isEmpty else { throw JournalError.empty }
-        guard lines.allSatisfy({ $0.count <= 4_000 }) else { throw JournalError.tooLong }
+        let items: [String]
+        if splitLines {
+            items = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        } else {
+            let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            items = value.isEmpty ? [] : [value]
+        }
+        guard !items.isEmpty else { throw JournalError.empty }
+        guard items.allSatisfy({ $0.count <= 4_000 }) else { throw JournalError.tooLong }
         observe(now, calendar: calendar)
-        entries[day.rawValue, default: []] += lines.map { Entry(text: $0, at: now) }
+        entries[day.rawValue, default: []] += items.map { Entry(text: $0, at: now) }
     }
     public mutating func edit(_ id: UUID, text: String, on day: Day, now: Date, calendar: Calendar = .journal) throws {
         guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
@@ -127,7 +139,22 @@ public struct Journal: Codable, Equatable, Sendable {
     public mutating func remove(_ id: UUID, on day: Day, now: Date, calendar: Calendar = .journal) throws {
         guard canEdit(day, now: now, calendar: calendar) else { throw JournalError.futureDate }
         guard let index = entries[day.rawValue]?.firstIndex(where: { $0.id == id }) else { throw JournalError.missingEntry }
-        observe(now, calendar: calendar); entries[day.rawValue]!.remove(at: index)
+        observe(now, calendar: calendar)
+        entries[day.rawValue]!.remove(at: index)
+        if entries[day.rawValue]?.isEmpty == true {
+            entries.removeValue(forKey: day.rawValue)
+        }
+    }
+    public func search(_ query: String) -> [SearchMatch] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let matches: (String) -> Bool = { $0.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive], locale: .current) != nil }
+        return entries.compactMap { key, list in
+            guard !list.isEmpty else { return nil }
+            let matched = matches(key) ? list : list.filter { matches($0.text) }
+            guard !matched.isEmpty else { return nil }
+            return SearchMatch(day: Day(rawValue: key), entries: matched)
+        }.sorted { $0.day > $1.day }
     }
     public func color(on day: Day, calendar: Calendar = .journal) -> DayColor {
         dayColors?[day.rawValue] ?? DayColor.automatic(for: day, calendar: calendar)
