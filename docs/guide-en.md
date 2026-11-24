@@ -5,11 +5,12 @@ A native, local-only activity journal for macOS. Write what you did, one line at
 ## Everyday use
 
 - Click the menu bar note icon to show or hide the line. Click today to write.
-- Return appends an entry. Shift + Return inserts a newline; submitting a multiline draft creates one entry per nonempty line. The editor respects marked text during IME composition.
+- Return appends an entry. Shift + Return inserts a newline inside the same entry; when multiple non-empty lines are present, an optional **Split lines** button also lets you append each line separately. Inline edits save with `⌘↩` and cancel with `Esc` (and `Esc` closes the editor when not editing an entry). The editor respects marked text during IME composition.
+- Inside any day's editor, click **Week** to return directly to the clothesline (syncing it to that week) or jump straight to **Week in review**, and use `<` / `>` (`⌘[` / `⌘]`) to step across days without losing window position. Explicitly toggling the clothesline via the menu bar or `⌃⌥L` dismisses open panels cleanly and reveals the line, and minimizing a window no longer locks out the clothesline.
 - Today and all past days support adding, editing and deleting entries. Editing can continue in the same note across midnight. Future dates remain unavailable until that day arrives.
 - Drag cards horizontally to reorder; vertical movement springs back. Pull the rope, double-click it to tidy, or click the sparkle button. Rearranging never changes journal dates or contents.
 - Weekdays appear by default. Enable weekends in Settings; days with weekend entries and today's weekend card always remain visible. At most seven cards appear, and previous weeks remain available.
-- Week in review shows entries in date order. Copy the week or export Markdown.
+- Week in review shows entries in date order, lets you search all notes and dates with `⌘F`, jump to any week via the calendar picker, return directly to the clothesline, and copy the week or export Markdown. Week labels automatically include the year when viewing another year or cross-year week.
 - Control + Option + N opens today's editor; Control + Option + L toggles the line. A conflicting system/app shortcut may prevent registration; menu bar actions are always available.
 - The central 360 points of the top screen edge reveal the line. Disable this behavior in Settings or pin the line to keep it visible.
 
@@ -41,7 +42,7 @@ Versions 0.1.0 and 0.1.1 do not contain an updater: install 0.1.2 or later manua
 
 ## Backup and recovery
 
-All data lives in `~/Library/Application Support/AetherNote/`. Settings can open that directory or export a full JSON journal backup. Markdown is for reading, not restoration. Drafts and preferences are separate from the full journal export; copy the whole data directory to preserve those too.
+All data lives in `~/Library/Application Support/AetherNote/`. Settings can open that directory, export a full JSON journal backup, or restore from an exported JSON backup (validating the file and prompting for confirmation before replacing the current journal, while rolling the prior state into `journal.previous.json`). Markdown is for reading, not restoration. Drafts and preferences are separate from the full journal export; copy the whole data directory to preserve those too.
 
 To restore manually:
 
